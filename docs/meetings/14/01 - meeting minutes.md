@@ -1,0 +1,4 @@
+- We built out our team contract
+- Introduced each other, excited to work together
+- Finished P0 and P1
+- Outlined expectations, and planned for the term
