@@ -1,0 +1,2 @@
+- Meeting to discuss Project Proposal
+- Split Project Proposal work amongst team members
