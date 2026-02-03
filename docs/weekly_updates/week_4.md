@@ -9,5 +9,5 @@ Jan 26 - Feb 1
   - [Vivek] added a 3-phase Gantt Chart for the Implementation timeline
   - [Alston] added the Use Case Diagram
   - [Aiden] added the introduction section
-  - [Rayton] added the use cases for the report
+  - [Rayton] added the user scenarios for the report
 
