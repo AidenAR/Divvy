@@ -1,0 +1,14 @@
+[
+    {
+        "merged": "com.example.divvy.app-merged_res-64:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "com.example.divvy.app-main-66:/mipmap-anydpi-v26/ic_launcher.xml"
+    },
+    {
+        "merged": "com.example.divvy.app-merged_res-64:/drawable_ic_launcher_foreground.xml.flat",
+        "source": "com.example.divvy.app-main-66:/drawable/ic_launcher_foreground.xml"
+    },
+    {
+        "merged": "com.example.divvy.app-merged_res-64:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
+        "source": "com.example.divvy.app-main-66:/mipmap-anydpi-v26/ic_launcher_round.xml"
+    }
+]
