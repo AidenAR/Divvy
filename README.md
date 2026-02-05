@@ -13,5 +13,6 @@ Each shared purchase generates a clear ledger showing who owes whom, making expe
 - Links:
   - [Team contract](./docs/team-contract.md)
   - [Meeting minutes](./docs/meetings/)
-  - [Meeting 1 - Jan 14th](docs/meetings/2026_01_14/01%20-%20meeting%20minutes.md)
+  - [Meeting 1 - Jan 14th](./docs/meetings/2026_01_14/01%20-%20meeting%20minutes.md)
   - [Meeting 2 - Jan 26th](./docs/meetings/2026_01_26/02%20-%20meeting_minutes.md)
+  - [Meeting 3 - Feb 4th](./docs/meetings/2026_02_04/03%20-%20meeting_minutes.md)

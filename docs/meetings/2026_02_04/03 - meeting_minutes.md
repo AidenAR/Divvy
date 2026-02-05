@@ -1,0 +1,8 @@
+- Meeting to discuss getting started with the project
+- Split Initial Project work amongst team members where:
+  - [Vivek] will work on the basic project setup
+  - [Alston] will work on design
+  - [Aadhyaaa] will work on design 
+  - [Aiden] will work on design implementation
+  - [Fayiz] will work on auth/basic expense management
+  - [Rayton] will work on investigating various APIs to interface with bank accounts
