@@ -25,13 +25,9 @@ Each shared purchase generates a clear ledger showing who owes whom, making expe
 - `app/src/main/java/com/example/divvy/models` — domain models
 - `docs/` — meeting minutes, team contract, weekly updates
 
-## Notes
-
-- Supabase connectivity is scaffolded but not wired to any client keys.
-
 ## Team
 
-Members: Vivek Bhardwaj (vivekbw), Rayton Chen (raytonc), Alston (als10), Fayiz Ahmed Mohideen (FayizMohideen), Aadhyaaa Mashru (aadhyaaamashru), Aiden Ramgoolam (AidenAR)
+**Members:** Vivek Bhardwaj (vivekbw), Rayton Chen (raytonc), Alston (als10), Fayiz Ahmed Mohideen (FayizMohideen), Aadhyaaa Mashru (aadhyaaamashru), Aiden Ramgoolam (AidenAR)
 
 ## Links
 
@@ -40,3 +36,15 @@ Members: Vivek Bhardwaj (vivekbw), Rayton Chen (raytonc), Alston (als10), Fayiz 
 - [Meeting 1 - Jan 14th](./docs/meetings/2026_01_14/01%20-%20meeting%20minutes.md)
 - [Meeting 2 - Jan 26th](./docs/meetings/2026_01_26/02%20-%20meeting_minutes.md)
 - [Meeting 3 - Feb 4th](./docs/meetings/2026_02_04/03%20-%20meeting_minutes.md)
+
+## Tech Stack
+
+- Kotlin Android App + Compose (MVVM architechture)
+- Supabase for DB + Authentication
+- Vercel for CI + LLM capabilities (transaction categorization)
+
+## Team Workflow
+
+- [Linear](https://linear.app/) for project management / issue tracking / prioritization
+- Figma for UI/UX mockup
+- Discord for communication
