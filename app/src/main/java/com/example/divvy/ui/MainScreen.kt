@@ -17,6 +17,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.divvy.ui.expenses.Views.ExpensesScreen
 import com.example.divvy.ui.groups.Views.GroupsScreen
+import com.example.divvy.ui.home.Views.HomeScreen
 import com.example.divvy.ui.ledger.Views.LedgerScreen
 import com.example.divvy.ui.profile.Views.ProfileScreen
 
@@ -30,8 +31,9 @@ data class BottomNavItem(
 fun MainScreen() {
     val navController = rememberNavController()
     val items = listOf(
-        BottomNavItem("Expenses", "Expenses"),
+        BottomNavItem("Home", "Home"),
         BottomNavItem("Groups", "Groups"),
+        BottomNavItem("Expenses", "Expenses"),
         BottomNavItem("Ledger", "Ledger"),
         BottomNavItem("Profile", "Profile")
     )
@@ -64,7 +66,7 @@ fun MainScreen() {
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = "Expenses",
+            startDestination = "Home",
             modifier = Modifier.padding(
                 PaddingValues(
                     top = innerPadding.calculateTopPadding(),
@@ -72,8 +74,28 @@ fun MainScreen() {
                 )
             )
         ) {
+            composable("Home") {
+                HomeScreen(
+                    onNavigateToGroups = {
+                        navController.navigate("Groups") {
+                            launchSingleTop = true
+                        }
+                    }
+                )
+            }
+            composable("Groups") {
+                GroupsScreen(
+                    onNavigateBack = {
+                        navController.navigate("Home") {
+                            popUpTo(navController.graph.startDestinationId) {
+                                inclusive = true
+                            }
+                            launchSingleTop = true
+                        }
+                    }
+                )
+            }
             composable("Expenses") { ExpensesScreen() }
-            composable("Groups") { GroupsScreen() }
             composable("Ledger") { LedgerScreen() }
             composable("Profile") { ProfileScreen() }
         }
