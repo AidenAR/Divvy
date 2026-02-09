@@ -26,21 +26,21 @@ class GroupsViewModel : ViewModel() {
                 Group(
                     id = "1",
                     name = "Roommates",
-                    emoji = "\uD83C\uDFE0",
+                    iconName = "Home",
                     memberCount = 3,
                     balanceCents = 16850L
                 ),
                 Group(
                     id = "2",
                     name = "Weekend Trip",
-                    emoji = "✈\uFE0F",
+                    iconName = "Flight",
                     memberCount = 5,
                     balanceCents = -8730L
                 ),
                 Group(
                     id = "3",
                     name = "Work Lunch",
-                    emoji = "\uD83C\uDF55",
+                    iconName = "Restaurant",
                     memberCount = 4,
                     balanceCents = 2240L
                 )

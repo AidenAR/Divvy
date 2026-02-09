@@ -2,7 +2,14 @@ package com.example.divvy.ui
 
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Receipt
+import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
@@ -11,6 +18,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -23,7 +31,8 @@ import com.example.divvy.ui.profile.Views.ProfileScreen
 
 data class BottomNavItem(
     val route: String,
-    val label: String
+    val label: String,
+    val icon: ImageVector
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -31,11 +40,11 @@ data class BottomNavItem(
 fun MainScreen() {
     val navController = rememberNavController()
     val items = listOf(
-        BottomNavItem("Home", "Home"),
-        BottomNavItem("Groups", "Groups"),
-        BottomNavItem("Expenses", "Expenses"),
-        BottomNavItem("Ledger", "Ledger"),
-        BottomNavItem("Profile", "Profile")
+        BottomNavItem("Home", "Home", Icons.Filled.Home),
+        BottomNavItem("Groups", "Groups", Icons.Filled.Group),
+        BottomNavItem("Expenses", "Expenses", Icons.Filled.Receipt),
+        BottomNavItem("Ledger", "Ledger", Icons.Filled.ReceiptLong),
+        BottomNavItem("Profile", "Profile", Icons.Filled.Person)
     )
 
     Scaffold(
@@ -58,7 +67,12 @@ fun MainScreen() {
                             }
                         },
                         label = { Text(item.label) },
-                        icon = {}
+                        icon = {
+                            Icon(
+                                imageVector = item.icon,
+                                contentDescription = item.label
+                            )
+                        }
                     )
                 }
             }

@@ -12,11 +12,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -35,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.divvy.components.GroupIcon
 import com.example.divvy.models.Group
 import com.example.divvy.ui.home.ViewModels.HomeViewModel
 
@@ -183,7 +189,20 @@ private fun HomeGroupCard(
                 .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(text = group.emoji, fontSize = 22.sp)
+            // Group icon in a tinted circle
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Purple.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
+            ) {
+                GroupIcon(
+                    iconName = group.iconName,
+                    tint = Purple,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
             Spacer(modifier = Modifier.width(12.dp))
 
             Column(modifier = Modifier.weight(1f)) {
@@ -201,7 +220,12 @@ private fun HomeGroupCard(
                 )
             }
 
-            Text(text = "→", fontSize = 18.sp, color = Color.Gray)
+            Icon(
+                imageVector = Icons.Filled.ArrowForward,
+                contentDescription = "Go to group",
+                tint = Color.Gray,
+                modifier = Modifier.size(18.dp)
+            )
         }
     }
 }
@@ -225,8 +249,15 @@ private fun BottomActionBar(
             colors = ButtonDefaults.buttonColors(containerColor = Purple),
             modifier = Modifier.height(40.dp)
         ) {
+            Icon(
+                imageVector = Icons.Rounded.CameraAlt,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = Color.White
+            )
+            Spacer(modifier = Modifier.width(6.dp))
             Text(
-                text = "\uD83D\uDCF7  Scan Receipt",
+                text = "Scan Receipt",
                 color = Color.White,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 13.sp
