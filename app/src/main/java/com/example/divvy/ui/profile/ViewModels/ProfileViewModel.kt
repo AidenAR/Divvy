@@ -2,6 +2,7 @@ package com.example.divvy.ui.profile.ViewModels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.divvy.backend.ProfilesRepository
 import com.example.divvy.backend.SupabaseClientProvider
 import com.example.divvy.backend.SupabaseProfilesRepository
 import com.example.divvy.models.ProfileRow
@@ -18,14 +19,15 @@ data class ProfileUiState(
     val profile: ProfileRow? = null,
     val email: String? = null,
     val phone: String? = null,
+    val phoneVerified: Boolean? = null,
     val avatarUrl: String? = null,
     val isLoading: Boolean = false,
     val errorMessage: String? = null
 )
 
 class ProfileViewModel(
+    private val profilesRepository: ProfilesRepository = SupabaseProfilesRepository()
 ) : ViewModel() {
-    private val profilesRepository = SupabaseProfilesRepository()
     private val _uiState = MutableStateFlow(ProfileUiState(isLoading = true))
     val uiState: StateFlow<ProfileUiState> = _uiState.asStateFlow()
 
@@ -57,6 +59,7 @@ class ProfileViewModel(
                         profile = profile,
                         email = user.email,
                         phone = phone,
+                        phoneVerified = profile?.phoneVerified,
                         avatarUrl = avatarUrl,
                         isLoading = false
                     )
@@ -74,7 +77,7 @@ class ProfileViewModel(
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
             try {
                 SupabaseClientProvider.client.auth.signOut()
-                _uiState.update { it.copy(isLoading = false, profile = null, email = null, phone = null) }
+                _uiState.update { it.copy(isLoading = false, profile = null, email = null, phone = null, phoneVerified = null) }
                 onComplete()
             } catch (e: Exception) {
                 _uiState.update {

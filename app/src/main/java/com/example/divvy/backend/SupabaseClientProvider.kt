@@ -14,8 +14,8 @@ object SupabaseClientProvider {
 
     val client: SupabaseClient
         get() {
-            if (clientInstance == null) {
-                clientInstance = createSupabaseClient(
+            return clientInstance ?: synchronized(this) {
+                clientInstance ?: createSupabaseClient(
                     supabaseUrl = BuildConfig.SUPABASE_URL,
                     supabaseKey = BuildConfig.SUPABASE_ANON_KEY
                 ) {
@@ -26,9 +26,8 @@ object SupabaseClientProvider {
                         defaultExternalAuthAction = ExternalAuthAction.CUSTOM_TABS
                     }
                     install(Postgrest)
-                }
+                }.also { clientInstance = it }
             }
-            return clientInstance!!
         }
 
     fun isInitialized(): Boolean = clientInstance != null

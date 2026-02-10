@@ -2,6 +2,7 @@ package com.example.divvy.ui.auth.ViewModels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.divvy.backend.ProfilesRepository
 import com.example.divvy.backend.SupabaseClientProvider
 import com.example.divvy.backend.SupabaseProfilesRepository
 import com.example.divvy.models.ProfileRow
@@ -29,14 +30,16 @@ data class AuthFlowState(
     val phoneDigits: String = "",
     val countryCode: String = "+1",
     val countryFlag: String = "🇺🇸",
+    val phoneVerified: Boolean = false,
     val authMethod: String? = null,
     val otpSent: Boolean = false,
     val isLoading: Boolean = false,
     val errorMessage: String? = null
 )
 
-class AuthFlowViewModel : ViewModel() {
-    private val profilesRepository = SupabaseProfilesRepository()
+class AuthFlowViewModel(
+    private val profilesRepository: ProfilesRepository = SupabaseProfilesRepository()
+) : ViewModel() {
 
     private val _state = MutableStateFlow(AuthFlowState())
     val state: StateFlow<AuthFlowState> = _state.asStateFlow()
@@ -56,6 +59,7 @@ class AuthFlowViewModel : ViewModel() {
             countryFlag = flag,
             countryCode = code,
             phoneDigits = trimmed,
+            phoneVerified = false,
             otp = "",
             otpSent = false,
             errorMessage = null
@@ -66,7 +70,14 @@ class AuthFlowViewModel : ViewModel() {
         val method = if (it.authMethod == "GOOGLE") it.authMethod else "PHONE"
         val maxDigits = maxDigitsForCountry(it.countryCode)
         val digits = value.filter { ch -> ch.isDigit() }.take(maxDigits)
-        it.copy(phoneDigits = digits, otp = "", otpSent = false, errorMessage = null, authMethod = method)
+        it.copy(
+            phoneDigits = digits,
+            phoneVerified = false,
+            otp = "",
+            otpSent = false,
+            errorMessage = null,
+            authMethod = method
+        )
     }
     fun updateOtp(value: String) = _state.update { it.copy(otp = value, errorMessage = null) }
     fun updateFirstName(value: String) = _state.update { it.copy(firstName = value, errorMessage = null) }
@@ -114,6 +125,7 @@ class AuthFlowViewModel : ViewModel() {
                 phone = phone,
                 token = token
             )
+            _state.update { it.copy(phoneVerified = true) }
             onSuccess()
         }
     }
@@ -148,7 +160,8 @@ class AuthFlowViewModel : ViewModel() {
                     lastName = last,
                     authMethod = method,
                     email = email,
-                    phone = phone
+                    phone = phone,
+                    phoneVerified = state.value.phoneVerified
                 )
             )
             onSuccess()
@@ -180,9 +193,13 @@ class AuthFlowViewModel : ViewModel() {
 
     suspend fun hasProfile(): Boolean {
         if (!checkConfigured()) return false
-        val user = SupabaseClientProvider.client.auth.currentUserOrNull()
-            ?: SupabaseClientProvider.client.auth.retrieveUserForCurrentSession(updateSession = true)
-        return profilesRepository.getProfile(user.id) != null
+        return try {
+            val user = SupabaseClientProvider.client.auth.currentUserOrNull()
+                ?: SupabaseClientProvider.client.auth.retrieveUserForCurrentSession(updateSession = true)
+            profilesRepository.getProfile(user.id) != null
+        } catch (_: Exception) {
+            false
+        }
     }
 
     private fun checkConfigured(): Boolean {

@@ -51,6 +51,8 @@ fun ProfileScreen(
     val uiState by viewModel.uiState.collectAsState()
     val profile = uiState.profile
     val displayEmail = profile?.email ?: uiState.email
+    val displayPhone = profile?.phone ?: uiState.phone
+    val phoneStatus = uiState.phoneVerified
 
     Column(
         modifier = Modifier
@@ -165,7 +167,15 @@ fun ProfileScreen(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(text = "Phone", fontWeight = FontWeight.Medium)
-                    Text(text = profile?.phone ?: uiState.phone ?: "No phone", color = Color(0xFF6B7280))
+                    Text(
+                        text = when {
+                            displayPhone.isNullOrBlank() -> "No phone"
+                            phoneStatus == true -> displayPhone
+                            phoneStatus == false -> "$displayPhone (unverified)"
+                            else -> displayPhone
+                        },
+                        color = Color(0xFF6B7280)
+                    )
                 }
             }
         }

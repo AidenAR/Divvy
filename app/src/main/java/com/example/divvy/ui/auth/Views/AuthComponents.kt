@@ -328,24 +328,29 @@ class NanpVisualTransformation : VisualTransformation {
             if (i == 6) out += "-"
             out += trimmed[i]
         }
-        return TransformedText(AnnotatedString(out), phoneNumberOffsetTranslator)
-    }
-
-    private val phoneNumberOffsetTranslator = object : OffsetMapping {
-        override fun originalToTransformed(offset: Int): Int =
-            when (offset) {
-                0 -> offset
-                in 1..3 -> offset + 1
-                in 4..6 -> offset + 3
-                else -> offset + 4
+        val outLength = out.length
+        val trimmedLength = trimmed.length
+        val offsetTranslator = object : OffsetMapping {
+            override fun originalToTransformed(offset: Int): Int {
+                val mapped = when (offset) {
+                    0 -> 0
+                    in 1..2 -> offset + 1
+                    in 3..5 -> offset + 3
+                    else -> offset + 4
+                }
+                return mapped.coerceAtMost(outLength)
             }
 
-        override fun transformedToOriginal(offset: Int): Int =
-            when (offset) {
-                0 -> offset
-                in 1..5 -> offset - 1
-                in 6..10 -> offset - 3
-                else -> offset - 4
+            override fun transformedToOriginal(offset: Int): Int {
+                val mapped = when (offset) {
+                    0 -> 0
+                    in 1..4 -> offset - 1
+                    in 5..9 -> offset - 3
+                    else -> offset - 4
+                }
+                return mapped.coerceIn(0, trimmedLength)
             }
+        }
+        return TransformedText(AnnotatedString(out), offsetTranslator)
     }
 }
