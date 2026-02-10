@@ -18,6 +18,18 @@ Each shared purchase generates a clear ledger showing who owes whom, making expe
 3. Run the `app` configuration.
 4. CLI build: `./gradlew :app:assembleDebug`
 
+### Local environment setup
+
+Add the following to `local.properties` (do not commit):
+`@TeamMembers` Ask @vivekbw for env vars async
+
+```
+SUPABASE_URL=https://xxxx.supabase.co
+SUPABASE_ANON_KEY=eyJ...
+```
+
+In Supabase Auth settings, enable Google and add `com.example.divvy://auth` as a redirect URL.
+
 ## Project Structure
 
 - `app/src/main/java/com/example/divvy/backend` — repositories and data access
