@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,30 +16,44 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.DropdownMenu
+import androidx.compose.material.DropdownMenuItem
+import androidx.compose.material.OutlinedTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.OffsetMapping
+import androidx.compose.ui.text.input.TransformedText
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.TextFieldDefaults
 
 val PurplePrimary = Color(0xFF5F2DE8)
 val PurpleSecondary = Color(0xFF7C3AED)
-val AuthBackground = Color(0xFFF3F2F9)
+val AuthBackground = Color.White
 val MutedText = Color(0xFF8F8F96)
 
 @Composable
@@ -197,4 +212,140 @@ fun AuthGradientBackground(): Brush {
             Color(0xFF4A1D98)
         )
     )
+}
+
+data class CountryCodeOption(
+    val flag: String,
+    val code: String
+)
+
+private val DefaultCountryCodes = listOf(
+    CountryCodeOption(flag = "🇺🇸", code = "+1"),
+    CountryCodeOption(flag = "🇨🇦", code = "+1"),
+    CountryCodeOption(flag = "🇲🇽", code = "+52"),
+)
+
+@Composable
+fun PhoneNumberField(
+    countryCode: String,
+    countryFlag: String,
+    phoneDigits: String,
+    onCountryChange: (String, String) -> Unit,
+    onPhoneDigitsChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    options: List<CountryCodeOption> = DefaultCountryCodes
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val maxDigits = if (countryCode == "+1") 10 else 15
+    val sanitized = phoneDigits.filter { it.isDigit() }.take(maxDigits)
+    val transformation = if (countryCode == "+1") NanpVisualTransformation() else VisualTransformation.None
+    Column(modifier = modifier) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box {
+                OutlinedButton(
+                    onClick = { expanded = true },
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.height(52.dp)
+                ) {
+                    Text(text = "$countryFlag $countryCode", fontWeight = FontWeight.Medium)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(
+                        imageVector = if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                        contentDescription = null
+                    )
+                }
+                DropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false }
+                ) {
+                    options.forEach { option ->
+                        DropdownMenuItem(
+                            onClick = {
+                                onCountryChange(option.flag, option.code)
+                                expanded = false
+                            }
+                        ) {
+                            Text(text = "${option.flag} ${option.code}")
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.width(10.dp))
+            OutlinedTextField(
+                value = sanitized,
+                onValueChange = { input ->
+                    val digits = input.filter { it.isDigit() }
+                    onPhoneDigitsChange(digits.take(maxDigits))
+                },
+                modifier = Modifier
+                    .weight(1f)
+                    .height(52.dp),
+                singleLine = true,
+                placeholder = { Text("Phone number", color = Color(0xFF9AA3B2)) },
+                visualTransformation = transformation,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Phone,
+                    imeAction = ImeAction.Done
+                ),
+                shape = RoundedCornerShape(14.dp),
+                colors = TextFieldDefaults.outlinedTextFieldColors(
+                    focusedBorderColor = Color(0xFF4C6FFF),
+                    unfocusedBorderColor = Color(0xFFE3E6F0),
+                    cursorColor = Color(0xFF4C6FFF),
+                    backgroundColor = Color.White
+                )
+            )
+        }
+    }
+}
+
+fun formatPhoneNumber(countryCode: String, phoneDigits: String): String {
+    val digits = phoneDigits.filter { it.isDigit() }
+    return if (countryCode == "+1") {
+        val part1 = digits.take(3)
+        val part2 = digits.drop(3).take(3)
+        val part3 = digits.drop(6).take(4)
+        val formatted = when {
+            digits.isEmpty() -> ""
+            digits.length <= 3 -> part1
+            digits.length <= 6 -> "($part1) $part2"
+            else -> "($part1) $part2-$part3"
+        }
+        listOf(countryCode, formatted).filter { it.isNotBlank() }.joinToString(" ")
+    } else {
+        val formatted = if (digits.isEmpty()) "" else digits.chunked(3).joinToString(" ")
+        listOf(countryCode, formatted).filter { it.isNotBlank() }.joinToString(" ")
+    }
+}
+
+class NanpVisualTransformation : VisualTransformation {
+    override fun filter(text: AnnotatedString): TransformedText {
+        val trimmed = if (text.text.length >= 10) text.text.substring(0..9) else text.text
+        var out = ""
+        if (trimmed.isNotEmpty()) out += "("
+        for (i in trimmed.indices) {
+            if (i == 3) out += ") "
+            if (i == 6) out += "-"
+            out += trimmed[i]
+        }
+        return TransformedText(AnnotatedString(out), phoneNumberOffsetTranslator)
+    }
+
+    private val phoneNumberOffsetTranslator = object : OffsetMapping {
+        override fun originalToTransformed(offset: Int): Int =
+            when (offset) {
+                0 -> offset
+                in 1..3 -> offset + 1
+                in 4..6 -> offset + 3
+                else -> offset + 4
+            }
+
+        override fun transformedToOriginal(offset: Int): Int =
+            when (offset) {
+                0 -> offset
+                in 1..5 -> offset - 1
+                in 6..10 -> offset - 3
+                else -> offset - 4
+            }
+    }
 }

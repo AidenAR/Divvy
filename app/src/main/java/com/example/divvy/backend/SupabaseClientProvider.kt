@@ -6,6 +6,8 @@ import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.gotrue.Auth
 import io.github.jan.supabase.gotrue.ExternalAuthAction
 import io.github.jan.supabase.postgrest.Postgrest
+import io.github.jan.supabase.serializer.KotlinXSerializer
+import kotlinx.serialization.json.Json
 
 object SupabaseClientProvider {
     private var clientInstance: SupabaseClient? = null
@@ -17,6 +19,7 @@ object SupabaseClientProvider {
                     supabaseUrl = BuildConfig.SUPABASE_URL,
                     supabaseKey = BuildConfig.SUPABASE_ANON_KEY
                 ) {
+                    defaultSerializer = KotlinXSerializer(Json { ignoreUnknownKeys = true })
                     install(Auth) {
                         scheme = "com.example.divvy"
                         host = "auth"

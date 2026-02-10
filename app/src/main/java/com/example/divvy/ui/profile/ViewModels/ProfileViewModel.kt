@@ -17,6 +17,7 @@ import kotlinx.coroutines.launch
 data class ProfileUiState(
     val profile: ProfileRow? = null,
     val email: String? = null,
+    val phone: String? = null,
     val avatarUrl: String? = null,
     val isLoading: Boolean = false,
     val errorMessage: String? = null
@@ -40,6 +41,7 @@ class ProfileViewModel(
                     ?: SupabaseClientProvider.client.auth.retrieveUserForCurrentSession(updateSession = true)
                 val profile = profilesRepository.getProfile(user.id)
                 val metadata = user.userMetadata?.jsonObject
+                val phone = profile?.phone ?: user.phone
                 val avatarUrl = metadata
                     ?.get("avatar_url")
                     ?.jsonPrimitive
@@ -54,6 +56,7 @@ class ProfileViewModel(
                     it.copy(
                         profile = profile,
                         email = user.email,
+                        phone = phone,
                         avatarUrl = avatarUrl,
                         isLoading = false
                     )
@@ -71,7 +74,7 @@ class ProfileViewModel(
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
             try {
                 SupabaseClientProvider.client.auth.signOut()
-                _uiState.update { it.copy(isLoading = false, profile = null, email = null) }
+                _uiState.update { it.copy(isLoading = false, profile = null, email = null, phone = null) }
                 onComplete()
             } catch (e: Exception) {
                 _uiState.update {

@@ -10,5 +10,6 @@ data class ProfileRow(
     @SerialName("last_name") val lastName: String,
     @SerialName("created_at") val createdAt: String? = null,
     @SerialName("auth_method") val authMethod: String? = null,
-    @SerialName("email") val email: String? = null
+    @SerialName("email") val email: String? = null,
+    @SerialName("phone") val phone: String? = null
 )

@@ -9,7 +9,6 @@ import io.github.jan.supabase.gotrue.OtpType
 import io.github.jan.supabase.gotrue.SessionStatus
 import io.github.jan.supabase.gotrue.auth
 import io.github.jan.supabase.gotrue.providers.Google
-import io.github.jan.supabase.gotrue.providers.builtin.Email
 import io.github.jan.supabase.gotrue.providers.builtin.OTP
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,13 +22,13 @@ enum class OAuthFlow {
 }
 
 data class AuthFlowState(
-    val email: String = "",
     val otp: String = "",
-    val password: String = "",
     val firstName: String = "",
     val lastName: String = "",
-    val loginEmail: String = "",
-    val loginPassword: String = "",
+    val profileEmail: String = "",
+    val phoneDigits: String = "",
+    val countryCode: String = "+1",
+    val countryFlag: String = "🇺🇸",
     val authMethod: String? = null,
     val otpSent: Boolean = false,
     val isLoading: Boolean = false,
@@ -50,15 +49,29 @@ class AuthFlowViewModel : ViewModel() {
         MutableStateFlow(SessionStatus.NotAuthenticated)
     }
 
-    fun updateEmail(value: String) = _state.update {
-        it.copy(email = value, otp = "", otpSent = false, errorMessage = null, authMethod = "MANUAL")
+    fun updateCountryOption(flag: String, code: String) = _state.update {
+        val maxDigits = maxDigitsForCountry(code)
+        val trimmed = it.phoneDigits.take(maxDigits)
+        it.copy(
+            countryFlag = flag,
+            countryCode = code,
+            phoneDigits = trimmed,
+            otp = "",
+            otpSent = false,
+            errorMessage = null
+        )
+    }
+
+    fun updatePhoneDigits(value: String) = _state.update {
+        val method = if (it.authMethod == "GOOGLE") it.authMethod else "PHONE"
+        val maxDigits = maxDigitsForCountry(it.countryCode)
+        val digits = value.filter { ch -> ch.isDigit() }.take(maxDigits)
+        it.copy(phoneDigits = digits, otp = "", otpSent = false, errorMessage = null, authMethod = method)
     }
     fun updateOtp(value: String) = _state.update { it.copy(otp = value, errorMessage = null) }
-    fun updatePassword(value: String) = _state.update { it.copy(password = value, errorMessage = null) }
     fun updateFirstName(value: String) = _state.update { it.copy(firstName = value, errorMessage = null) }
     fun updateLastName(value: String) = _state.update { it.copy(lastName = value, errorMessage = null) }
-    fun updateLoginEmail(value: String) = _state.update { it.copy(loginEmail = value, errorMessage = null) }
-    fun updateLoginPassword(value: String) = _state.update { it.copy(loginPassword = value, errorMessage = null) }
+    fun updateProfileEmail(value: String) = _state.update { it.copy(profileEmail = value, errorMessage = null) }
 
     fun startGoogleSignIn(flow: OAuthFlow) {
         if (!checkConfigured()) return
@@ -69,83 +82,39 @@ class AuthFlowViewModel : ViewModel() {
         }
     }
 
-    fun sendEmailOtp(onSuccess: () -> Unit) {
+    fun sendPhoneOtp(createUser: Boolean, onSuccess: () -> Unit) {
         if (!checkConfigured()) return
-        val email = state.value.email.trim()
-        if (email.isBlank()) {
-            _state.update { it.copy(errorMessage = "Email is required.") }
+        val phone = phoneE164()
+        if (phone.isBlank()) {
+            _state.update { it.copy(errorMessage = "Phone number is required.") }
             return
         }
-        _state.update { it.copy(authMethod = "MANUAL") }
         launchAuth {
+            _state.update { it.copy(authMethod = "PHONE") }
             SupabaseClientProvider.client.auth.signInWith(OTP) {
-                this.email = email
-                createUser = true
+                this.phone = phone
+                this.createUser = createUser
             }
             _state.update { it.copy(otpSent = true) }
             onSuccess()
         }
     }
 
-    fun verifyEmailOtp(onSuccess: () -> Unit) {
+    fun verifyPhoneOtp(onSuccess: () -> Unit) {
         if (!checkConfigured()) return
-        val email = state.value.email.trim()
         val token = state.value.otp.trim()
-        if (email.isBlank() || token.length != 6) {
+        val phone = phoneE164()
+        if (phone.isBlank() || token.length != 6) {
             _state.update { it.copy(errorMessage = "Enter the 6-digit code.") }
             return
         }
         launchAuth {
-            SupabaseClientProvider.client.auth.verifyEmailOtp(
-                type = OtpType.Email.SIGNUP,
-                email = email,
+            SupabaseClientProvider.client.auth.verifyPhoneOtp(
+                type = OtpType.Phone.SMS,
+                phone = phone,
                 token = token
             )
             onSuccess()
-        }
-    }
-
-    fun setPassword(onSuccess: () -> Unit) {
-        if (!checkConfigured()) return
-        val password = state.value.password
-        if (password.isBlank()) {
-            _state.update { it.copy(errorMessage = "Password is required.") }
-            return
-        }
-        launchAuth {
-            SupabaseClientProvider.client.auth.modifyUser { this.password = password }
-            onSuccess()
-        }
-    }
-
-    fun loginWithEmail(onSuccess: () -> Unit) {
-        if (!checkConfigured()) return
-        val email = state.value.loginEmail.trim()
-        val password = state.value.loginPassword
-        if (email.isBlank() || password.isBlank()) {
-            _state.update { it.copy(errorMessage = "Email and password are required.") }
-            return
-        }
-        _state.update { it.copy(authMethod = "MANUAL") }
-        launchAuth {
-            SupabaseClientProvider.client.auth.signInWith(Email) {
-                this.email = email
-                this.password = password
-            }
-            onSuccess()
-        }
-    }
-
-    fun sendPasswordReset(onSuccess: (String) -> Unit) {
-        if (!checkConfigured()) return
-        val email = state.value.loginEmail.trim()
-        if (email.isBlank()) {
-            _state.update { it.copy(errorMessage = "Enter your email first.") }
-            return
-        }
-        launchAuth {
-            SupabaseClientProvider.client.auth.resetPasswordForEmail(email)
-            onSuccess("Password reset email sent.")
         }
     }
 
@@ -153,25 +122,53 @@ class AuthFlowViewModel : ViewModel() {
         if (!checkConfigured()) return
         val first = state.value.firstName.trim()
         val last = state.value.lastName.trim()
+        val enteredEmail = state.value.profileEmail.trim()
+        val phone = phoneE164()
         if (first.isBlank() || last.isBlank()) {
-            _state.update { it.copy(errorMessage = "First and last name are required.") }
+            _state.update { it.copy(errorMessage = "First name and last name are required.") }
+            return
+        }
+        if (phone.isBlank()) {
+            _state.update { it.copy(errorMessage = "Phone number is required.") }
             return
         }
         launchAuth {
             val user = SupabaseClientProvider.client.auth.currentUserOrNull()
                 ?: SupabaseClientProvider.client.auth.retrieveUserForCurrentSession(updateSession = true)
-            val email = user.email
-            val method = state.value.authMethod ?: "MANUAL"
+            val email = enteredEmail.ifBlank { user.email.orEmpty() }
+            if (email.isBlank()) {
+                _state.update { it.copy(errorMessage = "Email is required.") }
+                return@launchAuth
+            }
+            val method = state.value.authMethod ?: "PHONE"
             profilesRepository.upsertProfile(
                 ProfileRow(
                     id = user.id,
                     firstName = first,
                     lastName = last,
                     authMethod = method,
-                    email = email
+                    email = email,
+                    phone = phone
                 )
             )
             onSuccess()
+        }
+    }
+
+    fun prefillProfileEmail() {
+        if (!checkConfigured()) return
+        if (state.value.profileEmail.isNotBlank()) return
+        viewModelScope.launch {
+            try {
+                val user = SupabaseClientProvider.client.auth.currentUserOrNull()
+                    ?: SupabaseClientProvider.client.auth.retrieveUserForCurrentSession(updateSession = true)
+                val email = user.email?.trim().orEmpty()
+                if (email.isNotBlank()) {
+                    _state.update { it.copy(profileEmail = email) }
+                }
+            } catch (_: Exception) {
+                // ignore
+            }
         }
     }
 
@@ -179,6 +176,13 @@ class AuthFlowViewModel : ViewModel() {
         val flow = pendingOAuthFlow
         pendingOAuthFlow = null
         return flow
+    }
+
+    suspend fun hasProfile(): Boolean {
+        if (!checkConfigured()) return false
+        val user = SupabaseClientProvider.client.auth.currentUserOrNull()
+            ?: SupabaseClientProvider.client.auth.retrieveUserForCurrentSession(updateSession = true)
+        return profilesRepository.getProfile(user.id) != null
     }
 
     private fun checkConfigured(): Boolean {
@@ -199,10 +203,28 @@ class AuthFlowViewModel : ViewModel() {
             try {
                 block()
             } catch (e: Exception) {
-                _state.update { it.copy(errorMessage = e.message ?: "Something went wrong.") }
+                val raw = e.message ?: "Something went wrong."
+                val friendly = if (raw.contains("Token has expired", ignoreCase = true) ||
+                    raw.contains("invalid", ignoreCase = true)
+                ) {
+                    "Code is invalid or expired. Please request a new one."
+                } else {
+                    raw.lines().firstOrNull()?.take(160) ?: "Something went wrong."
+                }
+                _state.update { it.copy(errorMessage = friendly) }
             } finally {
                 _state.update { it.copy(isLoading = false) }
             }
         }
+    }
+
+    private fun phoneE164(): String {
+        val digits = state.value.phoneDigits.trim()
+        if (digits.isBlank()) return ""
+        return "${state.value.countryCode}$digits"
+    }
+
+    private fun maxDigitsForCountry(countryCode: String): Int {
+        return if (countryCode == "+1") 10 else 15
     }
 }
