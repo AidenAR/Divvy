@@ -1,11 +1,15 @@
 package com.example.divvy.ui.home.ViewModels
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.divvy.backend.GroupsRepository
 import com.example.divvy.models.Group
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class HomeUiState(
@@ -28,45 +32,24 @@ data class HomeUiState(
 }
 
 @HiltViewModel
-class HomeViewModel @Inject constructor() : ViewModel() {
+class HomeViewModel @Inject constructor(
+    private val groupsRepository: GroupsRepository
+) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(HomeUiState())
+    private val _uiState = MutableStateFlow(HomeUiState(isLoading = true))
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
     init {
-        loadFakeData()
-    }
-
-    private fun loadFakeData() {
-        val fakeGroups = listOf(
-            Group(
-                id = "1",
-                name = "Roommates",
-                iconName = "Home",
-                memberCount = 3,
-                balanceCents = 16850L
-            ),
-            Group(
-                id = "2",
-                name = "Weekend Trip",
-                iconName = "Flight",
-                memberCount = 5,
-                balanceCents = -8730L
-            ),
-            Group(
-                id = "3",
-                name = "Work Lunch",
-                iconName = "Restaurant",
-                memberCount = 4,
-                balanceCents = 2240L
-            )
-        )
-
-        _uiState.value = HomeUiState(
-            groups = fakeGroups,
-            totalOwedCents = fakeGroups.filter { it.balanceCents > 0 }.sumOf { it.balanceCents },
-            totalOwingCents = fakeGroups.filter { it.balanceCents < 0 }.sumOf { kotlin.math.abs(it.balanceCents) },
-            isLoading = false
-        )
+        viewModelScope.launch {
+            val groups = groupsRepository.listGroups()
+            _uiState.update {
+                HomeUiState(
+                    groups = groups,
+                    totalOwedCents = groups.filter { it.balanceCents > 0 }.sumOf { it.balanceCents },
+                    totalOwingCents = groups.filter { it.balanceCents < 0 }.sumOf { kotlin.math.abs(it.balanceCents) },
+                    isLoading = false
+                )
+            }
+        }
     }
 }
