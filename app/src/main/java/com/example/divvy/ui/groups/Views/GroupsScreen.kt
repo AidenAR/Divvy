@@ -148,7 +148,7 @@ private fun ManageGroupCard(
                 contentAlignment = Alignment.Center
             ) {
                 GroupIcon(
-                    iconName = group.iconName,
+                    icon = group.icon,
                     tint = Color.White,
                     modifier = Modifier.size(20.dp)
                 )
