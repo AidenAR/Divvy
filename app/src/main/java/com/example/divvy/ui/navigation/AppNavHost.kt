@@ -18,13 +18,13 @@ fun AppNavHost(
 ) {
     NavHost(
         navController = navController,
-        startDestination = AppDestination.BottomNav.Home.route,
+        startDestination = AppDestination.BottomNav.Home,
         modifier = modifier
     ) {
-        composable(AppDestination.BottomNav.Home.route) { HomeScreen() }
-        composable(AppDestination.BottomNav.Groups.route)   { GroupsScreen() }
-        composable(AppDestination.BottomNav.Expenses.route) { ExpensesScreen() }
-        composable(AppDestination.BottomNav.Ledger.route)   { LedgerScreen() }
-        composable(AppDestination.BottomNav.Profile.route)  { ProfileScreen() }
+        composable<AppDestination.BottomNav.Home>     { HomeScreen() }
+        composable<AppDestination.BottomNav.Groups>   { GroupsScreen() }
+        composable<AppDestination.BottomNav.Expenses> { ExpensesScreen() }
+        composable<AppDestination.BottomNav.Ledger>   { LedgerScreen() }
+        composable<AppDestination.BottomNav.Profile>  { ProfileScreen() }
     }
 }
