@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.divvy.components.GroupIcon
 import com.example.divvy.models.Group
+import com.example.divvy.ui.creategroup.CreateGroupSheet
 import com.example.divvy.ui.home.ViewModels.HomeViewModel
 
 private val GreenBg = Color(0xFFE8F5E9)
@@ -118,7 +119,7 @@ fun HomeScreen(
             item {
                 Spacer(modifier = Modifier.height(4.dp))
                 TextButton(
-                    onClick = { /* TODO: create group */ },
+                    onClick = viewModel::onCreateGroupClick,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
@@ -134,6 +135,18 @@ fun HomeScreen(
         BottomActionBar(
             onScanReceipt = { /* TODO */ },
             onAddExpense = { /* TODO */ }
+        )
+    }
+
+    if (uiState.showCreateGroupSheet) {
+        CreateGroupSheet(
+            name = uiState.createName,
+            selectedIcon = uiState.createIcon,
+            isLoading = uiState.isCreating,
+            onNameChange = viewModel::onCreateNameChange,
+            onIconSelected = viewModel::onCreateIconSelected,
+            onCreate = viewModel::submitCreateGroup,
+            onDismiss = viewModel::onCreateGroupDismiss
         )
     }
 }
@@ -197,7 +210,7 @@ private fun HomeGroupCard(
                 contentAlignment = Alignment.Center
             ) {
                 GroupIcon(
-                    iconName = group.iconName,
+                    icon = group.icon,
                     tint = Purple,
                     modifier = Modifier.size(20.dp)
                 )
