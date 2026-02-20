@@ -14,6 +14,17 @@ import com.example.divvy.ui.auth.ViewModels.AuthFlowViewModel
 import com.example.divvy.ui.auth.ViewModels.OAuthFlow
 import io.github.jan.supabase.gotrue.SessionStatus
 
+private object AuthRoute {
+    const val LAUNCH               = "launch"
+    const val CREATE_START         = "create_start"
+    const val CREATE_PHONE         = "create_phone"
+    const val VERIFY_PHONE_CREATE  = "verify_phone_create"
+    const val NAME                 = "name"
+    const val LOGIN_START          = "login_start"
+    const val LOGIN_PHONE          = "login_phone"
+    const val VERIFY_PHONE_LOGIN   = "verify_phone_login"
+}
+
 @Composable
 fun AuthNav(
     onAuthenticated: () -> Unit
@@ -25,11 +36,11 @@ fun AuthNav(
     LaunchedEffect(sessionStatus) {
         if (sessionStatus is SessionStatus.Authenticated) {
             val currentRoute = navController.currentBackStackEntry?.destination?.route
-            if (currentRoute == "name") return@LaunchedEffect
+            if (currentRoute == AuthRoute.NAME) return@LaunchedEffect
             val hasProfile = viewModel.hasProfile()
             if (!hasProfile) {
-                navController.navigate("name") {
-                    popUpTo("launch") { inclusive = false }
+                navController.navigate(AuthRoute.NAME) {
+                    popUpTo(AuthRoute.LAUNCH) { inclusive = false }
                     launchSingleTop = true
                 }
                 return@LaunchedEffect
@@ -38,12 +49,12 @@ fun AuthNav(
                 OAuthFlow.CREATE -> onAuthenticated()
                 OAuthFlow.LOGIN -> onAuthenticated()
                 null -> {
-                    if (currentRoute == "launch" ||
-                        currentRoute == "login_start" ||
-                        currentRoute == "login_phone" ||
-                        currentRoute == "verify_phone_login" ||
-                        currentRoute == "create_phone" ||
-                        currentRoute == "verify_phone_create"
+                    if (currentRoute == AuthRoute.LAUNCH ||
+                        currentRoute == AuthRoute.LOGIN_START ||
+                        currentRoute == AuthRoute.LOGIN_PHONE ||
+                        currentRoute == AuthRoute.VERIFY_PHONE_LOGIN ||
+                        currentRoute == AuthRoute.CREATE_PHONE ||
+                        currentRoute == AuthRoute.VERIFY_PHONE_CREATE
                     ) {
                         onAuthenticated()
                     }
@@ -54,64 +65,64 @@ fun AuthNav(
 
     NavHost(
         navController = navController,
-        startDestination = "launch",
+        startDestination = AuthRoute.LAUNCH,
         modifier = Modifier.fillMaxSize()
     ) {
-        composable("launch") {
+        composable(AuthRoute.LAUNCH) {
             LaunchScreen(
-                onCreateAccount = { navController.navigate("create_start") },
-                onLogin = { navController.navigate("login_start") }
+                onCreateAccount = { navController.navigate(AuthRoute.CREATE_START) },
+                onLogin = { navController.navigate(AuthRoute.LOGIN_START) }
             )
         }
-        composable("create_start") {
+        composable(AuthRoute.CREATE_START) {
             CreateStartScreen(
                 onBack = { navController.popBackStack() },
-                onPhone = { navController.navigate("create_phone") },
+                onPhone = { navController.navigate(AuthRoute.CREATE_PHONE) },
                 onGoogle = { viewModel.startGoogleSignIn(flow = OAuthFlow.CREATE) }
             )
         }
-        composable("create_phone") {
+        composable(AuthRoute.CREATE_PHONE) {
             CreatePhoneScreen(
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() },
-                onNext = { navController.navigate("verify_phone_create") }
+                onNext = { navController.navigate(AuthRoute.VERIFY_PHONE_CREATE) }
             )
         }
-        composable("verify_phone_create") {
+        composable(AuthRoute.VERIFY_PHONE_CREATE) {
             VerifyPhoneScreen(
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() },
-                onNext = { navController.navigate("name") },
-                onChangePhone = { navController.popBackStack("create_phone", inclusive = false) }
+                onNext = { navController.navigate(AuthRoute.NAME) },
+                onChangePhone = { navController.popBackStack(AuthRoute.CREATE_PHONE, inclusive = false) }
             )
         }
-        composable("name") {
+        composable(AuthRoute.NAME) {
             NameScreen(
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() },
                 onDone = onAuthenticated
             )
         }
-        composable("login_start") {
+        composable(AuthRoute.LOGIN_START) {
             LoginStartScreen(
                 onBack = { navController.popBackStack() },
-                onPhone = { navController.navigate("login_phone") },
+                onPhone = { navController.navigate(AuthRoute.LOGIN_PHONE) },
                 onGoogle = { viewModel.startGoogleSignIn(flow = OAuthFlow.LOGIN) }
             )
         }
-        composable("login_phone") {
+        composable(AuthRoute.LOGIN_PHONE) {
             LoginPhoneScreen(
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() },
-                onNext = { navController.navigate("verify_phone_login") }
+                onNext = { navController.navigate(AuthRoute.VERIFY_PHONE_LOGIN) }
             )
         }
-        composable("verify_phone_login") {
+        composable(AuthRoute.VERIFY_PHONE_LOGIN) {
             VerifyPhoneLoginScreen(
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() },
                 onLogin = onAuthenticated,
-                onChangePhone = { navController.popBackStack("login_phone", inclusive = false) }
+                onChangePhone = { navController.popBackStack(AuthRoute.LOGIN_PHONE, inclusive = false) }
             )
         }
     }
