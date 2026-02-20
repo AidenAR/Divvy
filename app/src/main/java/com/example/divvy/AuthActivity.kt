@@ -14,6 +14,11 @@ import io.github.jan.supabase.gotrue.handleDeeplinks
 class AuthActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (FeatureFlags.AUTH_BYPASS) {
+            startActivity(Intent(this, MainActivity::class.java))
+            finish()
+            return
+        }
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = Color.TRANSPARENT
         window.navigationBarColor = Color.TRANSPARENT

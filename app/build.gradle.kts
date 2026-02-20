@@ -14,6 +14,7 @@ val localProperties = Properties().apply {
 }
 val supabaseUrl = localProperties.getProperty("SUPABASE_URL", "")
 val supabaseAnonKey = localProperties.getProperty("SUPABASE_ANON_KEY", "")
+val authBypass = localProperties.getProperty("AUTH_BYPASS", "false").toBoolean()
 
 android {
     namespace = "com.example.divvy"
@@ -36,6 +37,7 @@ android {
         all {
             buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
             buildConfigField("String", "SUPABASE_ANON_KEY", "\"$supabaseAnonKey\"")
+            buildConfigField("Boolean", "AUTH_BYPASS", "$authBypass")
         }
         release {
             isMinifyEnabled = false
