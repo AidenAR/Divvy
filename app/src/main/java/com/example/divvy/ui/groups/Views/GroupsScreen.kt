@@ -32,7 +32,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.divvy.components.GroupIcon
 import com.example.divvy.models.Group
 import com.example.divvy.ui.groups.ViewModels.GroupsViewModel
@@ -50,7 +50,7 @@ private val groupColors = listOf(
 
 @Composable
 fun GroupsScreen(
-    viewModel: GroupsViewModel = viewModel(factory = GroupsViewModel.Factory)
+    viewModel: GroupsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
 

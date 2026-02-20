@@ -6,7 +6,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -30,7 +30,7 @@ fun AuthNav(
     onAuthenticated: () -> Unit
 ) {
     val navController = rememberNavController()
-    val viewModel: AuthFlowViewModel = viewModel()
+    val viewModel: AuthFlowViewModel = hiltViewModel()
     val sessionStatus by viewModel.sessionStatus.collectAsState()
 
     LaunchedEffect(sessionStatus) {
