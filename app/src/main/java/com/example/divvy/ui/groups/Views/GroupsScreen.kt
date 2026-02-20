@@ -17,12 +17,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -34,7 +32,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.divvy.components.GroupIcon
 import com.example.divvy.models.Group
@@ -53,7 +50,6 @@ private val groupColors = listOf(
 
 @Composable
 fun GroupsScreen(
-    onNavigateBack: () -> Unit = {},
     viewModel: GroupsViewModel = viewModel(factory = GroupsViewModel.Factory)
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -63,29 +59,20 @@ fun GroupsScreen(
             .fillMaxSize()
             .background(Color.White)
     ) {
-        // Header row: back arrow + title + add button
+        // Header row: title + add button
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 8.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Back arrow
-            IconButton(onClick = onNavigateBack) {
-                Icon(
-                    imageVector = Icons.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = Color.Black
-                )
-            }
-
             // Title
             Text(
                 text = "Manage Groups",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = Color.Black,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f).padding(start = 8.dp)
             )
 
             // Add group button
