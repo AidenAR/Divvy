@@ -97,18 +97,7 @@ fun MainScreen() {
                     }
                 )
             }
-            composable("Groups") {
-                GroupsScreen(
-                    onNavigateBack = {
-                        navController.navigate("Home") {
-                            popUpTo(navController.graph.startDestinationId) {
-                                inclusive = true
-                            }
-                            launchSingleTop = true
-                        }
-                    }
-                )
-            }
+            composable("Groups") { GroupsScreen() }
             composable("Expenses") { ExpensesScreen() }
             composable("Ledger") { LedgerScreen() }
             composable("Profile") { ProfileScreen() }

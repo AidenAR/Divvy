@@ -1,51 +1,41 @@
 package com.example.divvy.ui.groups.ViewModels
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import com.example.divvy.backend.GroupsRepository
+import com.example.divvy.backend.StubGroupsRepository
 import com.example.divvy.models.Group
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 data class ManageGroupsUiState(
     val groups: List<Group> = emptyList(),
     val isLoading: Boolean = false
 )
 
-class GroupsViewModel : ViewModel() {
+class GroupsViewModel(
+    private val groupsRepository: GroupsRepository
+) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(ManageGroupsUiState())
+    companion object {
+        val Factory: ViewModelProvider.Factory = viewModelFactory {
+            initializer { GroupsViewModel(StubGroupsRepository()) }
+        }
+    }
+
+    private val _uiState = MutableStateFlow(ManageGroupsUiState(isLoading = true))
     val uiState: StateFlow<ManageGroupsUiState> = _uiState.asStateFlow()
 
     init {
-        loadFakeData()
-    }
-
-    private fun loadFakeData() {
-        _uiState.value = ManageGroupsUiState(
-            groups = listOf(
-                Group(
-                    id = "1",
-                    name = "Roommates",
-                    iconName = "Home",
-                    memberCount = 3,
-                    balanceCents = 16850L
-                ),
-                Group(
-                    id = "2",
-                    name = "Weekend Trip",
-                    iconName = "Flight",
-                    memberCount = 5,
-                    balanceCents = -8730L
-                ),
-                Group(
-                    id = "3",
-                    name = "Work Lunch",
-                    iconName = "Restaurant",
-                    memberCount = 4,
-                    balanceCents = 2240L
-                )
-            ),
-            isLoading = false
-        )
+        viewModelScope.launch {
+            val groups = groupsRepository.listGroups()
+            _uiState.update { ManageGroupsUiState(groups = groups, isLoading = false) }
+        }
     }
 }

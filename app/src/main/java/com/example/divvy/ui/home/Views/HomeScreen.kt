@@ -112,7 +112,7 @@ fun HomeScreen(
             }
 
             items(uiState.groups) { group ->
-                HomeGroupCard(group = group, onClick = onNavigateToGroups)
+                HomeGroupCard(group = group, onClick = { /** TODO: Navigate to Group Details */ })
                 Spacer(modifier = Modifier.height(10.dp))
             }
 
