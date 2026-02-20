@@ -11,17 +11,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.padding
+import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.divvy.ui.navigation.AppDestination
 import com.example.divvy.ui.navigation.AppNavHost
+import com.example.divvy.ui.navigation.bottomNavItems
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen() {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = navBackStackEntry?.destination?.route
+    val currentDestination = navBackStackEntry?.destination
 
     Scaffold(
         topBar = {
@@ -29,21 +31,21 @@ fun MainScreen() {
         },
         bottomBar = {
             NavigationBar {
-                AppDestination.BottomNav.all.forEach { destination ->
+                bottomNavItems.forEach { item ->
                     NavigationBarItem(
-                        selected = currentRoute == destination.route,
+                        selected = currentDestination?.hasRoute(item.destination::class) == true,
                         onClick = {
-                            navController.navigate(destination.route) {
-                                popUpTo(AppDestination.BottomNav.Home.route) { saveState = true }
+                            navController.navigate(item.destination) {
+                                popUpTo<AppDestination.BottomNav.Home> { saveState = true }
                                 launchSingleTop = true
                                 restoreState = true
                             }
                         },
-                        label = { Text(destination.label) },
+                        label = { Text(item.label) },
                         icon = {
                             Icon(
-                                imageVector = destination.icon,
-                                contentDescription = destination.label
+                                imageVector = item.icon,
+                                contentDescription = item.label
                             )
                         }
                     )

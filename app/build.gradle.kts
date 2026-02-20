@@ -1,9 +1,11 @@
 import java.util.Properties
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.serialization")
+    id("org.jetbrains.kotlin.plugin.compose")
 }
 
 val localProperties = Properties().apply {
@@ -53,17 +55,15 @@ android {
         targetCompatibility = JavaVersion.VERSION_1_8
     }
 
-    kotlinOptions {
-        jvmTarget = "1.8"
-    }
-
     buildFeatures {
         compose = true
         buildConfig = true
     }
+}
 
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.2"
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_1_8)
     }
 }
 
@@ -78,11 +78,11 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.browser:browser:1.7.0")
     implementation("com.google.android.material:material:1.11.0")
-    implementation("androidx.navigation:navigation-compose:2.5.3")
+    implementation("androidx.navigation:navigation-compose:2.8.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.1")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.6.1")
     implementation("io.coil-kt:coil-compose:2.4.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.5.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 
     implementation(platform("io.github.jan-tennert.supabase:bom:2.0.0"))
     implementation("io.github.jan-tennert.supabase:postgrest-kt")
