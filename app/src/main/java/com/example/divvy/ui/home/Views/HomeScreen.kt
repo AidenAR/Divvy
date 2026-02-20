@@ -53,7 +53,6 @@ private val LightGray = Color(0xFFF5F5F5)
 
 @Composable
 fun HomeScreen(
-    onNavigateToGroups: () -> Unit = {},
     viewModel: HomeViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
