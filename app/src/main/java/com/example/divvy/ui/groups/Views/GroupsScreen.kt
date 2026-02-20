@@ -54,7 +54,7 @@ private val groupColors = listOf(
 @Composable
 fun GroupsScreen(
     onNavigateBack: () -> Unit = {},
-    viewModel: GroupsViewModel = viewModel()
+    viewModel: GroupsViewModel = viewModel(factory = GroupsViewModel.Factory)
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
