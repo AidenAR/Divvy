@@ -2,6 +2,8 @@ package com.example.divvy.ui.profile.ViewModels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.divvy.FeatureFlags
+import com.example.divvy.ui.auth.DummyAccount
 import com.example.divvy.backend.ProfilesRepository
 import com.example.divvy.backend.SupabaseClientProvider
 import com.example.divvy.backend.SupabaseProfilesRepository
@@ -38,6 +40,19 @@ class ProfileViewModel(
     fun loadProfile() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+            if (FeatureFlags.AUTH_BYPASS) {
+                _uiState.update {
+                    it.copy(
+                        profile = DummyAccount.profile,
+                        email = DummyAccount.profile.email,
+                        phone = DummyAccount.profile.phone,
+                        phoneVerified = DummyAccount.profile.phoneVerified,
+                        avatarUrl = null,
+                        isLoading = false
+                    )
+                }
+                return@launch
+            }
             try {
                 val user = SupabaseClientProvider.client.auth.currentUserOrNull()
                     ?: SupabaseClientProvider.client.auth.retrieveUserForCurrentSession(updateSession = true)
@@ -75,6 +90,11 @@ class ProfileViewModel(
     fun signOut(onComplete: () -> Unit) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+            if (FeatureFlags.AUTH_BYPASS) {
+                _uiState.update { it.copy(isLoading = false, profile = null, email = null, phone = null, phoneVerified = null) }
+                onComplete()
+                return@launch
+            }
             try {
                 SupabaseClientProvider.client.auth.signOut()
                 _uiState.update { it.copy(isLoading = false, profile = null, email = null, phone = null, phoneVerified = null) }
