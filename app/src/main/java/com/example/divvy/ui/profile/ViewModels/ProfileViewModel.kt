@@ -6,8 +6,9 @@ import com.example.divvy.FeatureFlags
 import com.example.divvy.ui.auth.DummyAccount
 import com.example.divvy.backend.ProfilesRepository
 import com.example.divvy.backend.SupabaseClientProvider
-import com.example.divvy.backend.SupabaseProfilesRepository
 import com.example.divvy.models.ProfileRow
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import io.github.jan.supabase.gotrue.auth
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -27,8 +28,9 @@ data class ProfileUiState(
     val errorMessage: String? = null
 )
 
-class ProfileViewModel(
-    private val profilesRepository: ProfilesRepository = SupabaseProfilesRepository()
+@HiltViewModel
+class ProfileViewModel @Inject constructor(
+    private val profilesRepository: ProfilesRepository
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(ProfileUiState(isLoading = true))
     val uiState: StateFlow<ProfileUiState> = _uiState.asStateFlow()

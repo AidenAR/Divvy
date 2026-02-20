@@ -2,12 +2,14 @@ package com.example.divvy.backend
 
 import com.example.divvy.models.ProfileRow
 import io.github.jan.supabase.postgrest.from
+import javax.inject.Inject
+
 interface ProfilesRepository {
     suspend fun upsertProfile(profile: ProfileRow)
     suspend fun getProfile(userId: String): ProfileRow?
 }
 
-class SupabaseProfilesRepository : ProfilesRepository {
+class SupabaseProfilesRepository @Inject constructor() : ProfilesRepository {
     private val client
         get() = SupabaseClientProvider.client
 

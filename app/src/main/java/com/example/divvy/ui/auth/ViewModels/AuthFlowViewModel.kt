@@ -4,8 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.divvy.backend.ProfilesRepository
 import com.example.divvy.backend.SupabaseClientProvider
-import com.example.divvy.backend.SupabaseProfilesRepository
 import com.example.divvy.models.ProfileRow
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import io.github.jan.supabase.gotrue.OtpType
 import io.github.jan.supabase.gotrue.SessionStatus
 import io.github.jan.supabase.gotrue.auth
@@ -37,8 +38,9 @@ data class AuthFlowState(
     val errorMessage: String? = null
 )
 
-class AuthFlowViewModel(
-    private val profilesRepository: ProfilesRepository = SupabaseProfilesRepository()
+@HiltViewModel
+class AuthFlowViewModel @Inject constructor(
+    private val profilesRepository: ProfilesRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(AuthFlowState())
