@@ -30,7 +30,8 @@ sealed interface AppDestination {
     @Serializable
     data class SplitExpense(
         val scannedAmount: String = "",
-        val scannedDescription: String = ""
+        val scannedDescription: String = "",
+        val preselectedGroupId: String = ""
     ) : AppDestination
 
     @Serializable

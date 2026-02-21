@@ -80,6 +80,7 @@ fun GroupDetailScreen(
     groupId: String,
     onBack: () -> Unit,
     onLeaveGroup: () -> Unit,
+    onAddExpense: () -> Unit,
 ) {
     val viewModel: GroupDetailViewModel = hiltViewModel<GroupDetailViewModel, GroupDetailViewModel.Factory>(
         creationCallback = { factory -> factory.create(groupId) }
@@ -195,7 +196,7 @@ fun GroupDetailScreen(
                 .height(54.dp)
                 .clip(RoundedCornerShape(50.dp))
                 .background(Brush.horizontalGradient(listOf(Purple, Blue)))
-                .clickable { /* TODO */ },
+                .clickable { onAddExpense() },
             contentAlignment = Alignment.Center
         ) {
             Text(
