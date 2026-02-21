@@ -39,6 +39,13 @@ sealed interface AppDestination {
         val amountDisplay: String,
         val description: String
     ) : AppDestination
+
+    @Serializable
+    data class SplitByPercentage(
+        val groupId: String,
+        val amountDisplay: String,
+        val description: String
+    ) : AppDestination
 }
 
 // UI metadata for the bottom bar — separate from the navigation contract
