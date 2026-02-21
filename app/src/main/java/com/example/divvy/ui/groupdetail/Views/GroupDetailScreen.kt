@@ -23,6 +23,10 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -32,6 +36,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -39,6 +44,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -72,11 +79,17 @@ private val avatarColors = listOf(
 fun GroupDetailScreen(
     groupId: String,
     onBack: () -> Unit,
+    onLeaveGroup: () -> Unit,
 ) {
     val viewModel: GroupDetailViewModel = hiltViewModel<GroupDetailViewModel, GroupDetailViewModel.Factory>(
         creationCallback = { factory -> factory.create(groupId) }
     )
     val uiState by viewModel.uiState.collectAsState()
+    val clipboardManager = LocalClipboardManager.current
+
+    LaunchedEffect(uiState.leftGroup) {
+        if (uiState.leftGroup) onLeaveGroup()
+    }
 
     Box(modifier = Modifier.fillMaxSize().background(Color.White)) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -100,6 +113,12 @@ fun GroupDetailScreen(
                     textAlign = TextAlign.Center,
                     modifier = Modifier.weight(1f)
                 )
+                IconButton(onClick = { viewModel.onGearClick() }) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = "Manage Group"
+                    )
+                }
             }
 
             LazyColumn(
@@ -108,6 +127,23 @@ fun GroupDetailScreen(
                     .padding(horizontal = 16.dp),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 96.dp)
             ) {
+                // Manage group panel
+                item {
+                    AnimatedVisibility(visible = uiState.showManagePanel) {
+                        Column {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            ManageGroupCard(
+                                groupId = groupId,
+                                onLeaveGroup = { viewModel.onLeaveGroup() },
+                                onCopyLink = { url ->
+                                    clipboardManager.setText(AnnotatedString(url))
+                                }
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
+                    }
+                }
+
                 // Balance summary card
                 item {
                     Spacer(modifier = Modifier.height(8.dp))
@@ -168,6 +204,99 @@ fun GroupDetailScreen(
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 16.sp
             )
+        }
+    }
+}
+
+@Composable
+private fun ManageGroupCard(
+    groupId: String,
+    onLeaveGroup: () -> Unit,
+    onCopyLink: (String) -> Unit
+) {
+    val inviteUrl = "divvy.app/join/$groupId"
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column {
+            // Invite link row
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFEDE7F6)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Link,
+                        contentDescription = null,
+                        tint = Purple,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Invite Link",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 15.sp,
+                        color = Color.Black
+                    )
+                    Text(
+                        text = inviteUrl,
+                        fontSize = 12.sp,
+                        color = Color.Gray
+                    )
+                }
+                IconButton(onClick = { onCopyLink(inviteUrl) }) {
+                    Icon(
+                        imageVector = Icons.Default.ContentCopy,
+                        contentDescription = "Copy link",
+                        tint = Color.Gray,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                color = Color(0xFFF0F0F0)
+            )
+
+            // Leave group row
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(bottomStart = 14.dp, bottomEnd = 14.dp))
+                    .background(Color(0xFFFFF5F5))
+                    .clickable(onClick = onLeaveGroup)
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = null,
+                    tint = Color(0xFFD32F2F),
+                    modifier = Modifier.size(22.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = "Leave Group",
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 15.sp,
+                    color = Color(0xFFD32F2F)
+                )
+            }
         }
     }
 }

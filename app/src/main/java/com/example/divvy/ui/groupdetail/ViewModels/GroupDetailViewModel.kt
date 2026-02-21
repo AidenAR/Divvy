@@ -32,7 +32,9 @@ data class GroupDetailUiState(
     val expandedMemberId: String? = null,
     val settleMode: SettleMode? = null,
     val settleAmount: String = "",
-    val isSettling: Boolean = false
+    val isSettling: Boolean = false,
+    val showManagePanel: Boolean = false,
+    val leftGroup: Boolean = false
 )
 
 @HiltViewModel(assistedFactory = GroupDetailViewModel.Factory::class)
@@ -96,6 +98,17 @@ class GroupDetailViewModel @AssistedInject constructor(
         val dot = filtered.indexOf('.')
         if (dot != -1 && filtered.length - dot - 1 > 2) return
         _uiState.update { it.copy(settleAmount = filtered) }
+    }
+
+    fun onGearClick() {
+        _uiState.update { it.copy(showManagePanel = !it.showManagePanel) }
+    }
+
+    fun onLeaveGroup() {
+        viewModelScope.launch {
+            repo.leaveGroup(groupId)
+            _uiState.update { it.copy(leftGroup = true) }
+        }
     }
 
     fun onConfirmSettle(userId: String) {

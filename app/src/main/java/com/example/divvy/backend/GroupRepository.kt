@@ -35,6 +35,7 @@ interface GroupRepository {
 
     // --- Expenses ---
     suspend fun addExpense(expense: GroupExpense)
+    suspend fun leaveGroup(groupId: String)
 
     // --- Derived (computed from expenses + members) ---
     fun getMemberBalances(groupId: String): Flow<List<MemberBalance>>
@@ -227,6 +228,12 @@ class StubGroupRepository @Inject constructor() : GroupRepository {
         _expensesState.update { map ->
             map + (expense.groupId to ((map[expense.groupId] ?: emptyList()) + expense))
         }
+    }
+
+    override suspend fun leaveGroup(groupId: String) {
+        _groupsState.update { it.filter { g -> g.id != groupId } }
+        _membersState.update { it - groupId }
+        _expensesState.update { it - groupId }
     }
 
     // --- Derived ---
