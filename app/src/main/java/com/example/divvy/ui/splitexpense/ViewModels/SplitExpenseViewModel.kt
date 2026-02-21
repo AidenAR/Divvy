@@ -3,17 +3,22 @@ package com.example.divvy.ui.splitexpense.ViewModels
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.divvy.backend.ExpensesRepository
-import com.example.divvy.backend.GroupsRepository
+import com.example.divvy.backend.CURRENT_USER_ID
+import com.example.divvy.backend.GroupRepository
 import com.example.divvy.models.Group
+import com.example.divvy.models.GroupExpense
+import com.example.divvy.models.splitEqually
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.LocalDate
+import java.util.UUID
 import javax.inject.Inject
 
 enum class SplitMethod(val title: String, val subtitle: String) {
@@ -35,11 +40,10 @@ data class SplitExpenseUiState(
 @HiltViewModel
 class SplitExpenseViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val groupsRepository: GroupsRepository,
-    private val expensesRepository: ExpensesRepository
+    private val groupRepository: GroupRepository
 ) : ViewModel() {
 
-    private val scannedAmount: String = savedStateHandle["scannedAmount"] ?: ""
+    private val scannedAmount: String      = savedStateHandle["scannedAmount"]      ?: ""
     private val scannedDescription: String = savedStateHandle["scannedDescription"] ?: ""
 
     private val _uiState = MutableStateFlow(
@@ -53,32 +57,24 @@ class SplitExpenseViewModel @Inject constructor(
 
     sealed interface SplitEvent {
         data object Created : SplitEvent
-        data class GoToAssignItems(
-            val groupId: String,
-            val amount: String,
-            val description: String
-        ) : SplitEvent
-        data class GoToSplitByPercentage(
-            val groupId: String,
-            val amount: String,
-            val description: String
-        ) : SplitEvent
+        data class GoToAssignItems(val groupId: String, val amount: String, val description: String) : SplitEvent
+        data class GoToSplitByPercentage(val groupId: String, val amount: String, val description: String) : SplitEvent
     }
 
     private val _events = Channel<SplitEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
 
-    init { loadGroups() }
-
-    private fun loadGroups() {
+    init {
         viewModelScope.launch {
-            val groups = groupsRepository.listGroups()
-            _uiState.update {
-                it.copy(
-                    groups = groups,
-                    selectedGroupId = groups.firstOrNull()?.id,
-                    isLoading = false
-                )
+            groupRepository.listGroups().collect { groups ->
+                _uiState.update { current ->
+                    current.copy(
+                        groups = groups,
+                        // Preserve selection once set; default to first group on first emission.
+                        selectedGroupId = current.selectedGroupId ?: groups.firstOrNull()?.id,
+                        isLoading = false
+                    )
+                }
             }
         }
     }
@@ -92,47 +88,49 @@ class SplitExpenseViewModel @Inject constructor(
         _uiState.update { it.copy(amount = filtered) }
     }
 
-    fun onDescriptionChange(value: String) {
-        _uiState.update { it.copy(description = value) }
-    }
-
-    fun onGroupSelected(groupId: String) {
-        _uiState.update { it.copy(selectedGroupId = groupId) }
-    }
-
-    fun onSplitMethodSelected(method: SplitMethod) {
-        _uiState.update { it.copy(splitMethod = method) }
-    }
+    fun onDescriptionChange(value: String) { _uiState.update { it.copy(description = value) } }
+    fun onGroupSelected(groupId: String)   { _uiState.update { it.copy(selectedGroupId = groupId) } }
+    fun onSplitMethodSelected(method: SplitMethod) { _uiState.update { it.copy(splitMethod = method) } }
 
     fun onCreateSplit() {
-        val state = _uiState.value
+        val state   = _uiState.value
         val groupId = state.selectedGroupId ?: return
         if (state.amount.toDoubleOrNull() == null) return
 
-        val desc = state.description.trim().ifBlank { "Expense" }
-
-        if (state.splitMethod == SplitMethod.ByItems) {
-            viewModelScope.launch {
-                _events.send(SplitEvent.GoToAssignItems(groupId, state.amount, desc))
-            }
-            return
-        }
-
-        if (state.splitMethod == SplitMethod.ByPercentage) {
-            viewModelScope.launch {
-                _events.send(SplitEvent.GoToSplitByPercentage(groupId, state.amount, desc))
-            }
-            return
-        }
-
+        val desc        = state.description.trim().ifBlank { "Expense" }
         val amountCents = (state.amount.toDouble() * 100).toLong()
+
+        when (state.splitMethod) {
+            SplitMethod.ByItems -> {
+                viewModelScope.launch {
+                    _events.send(SplitEvent.GoToAssignItems(groupId, state.amount, desc))
+                }
+                return
+            }
+            SplitMethod.ByPercentage -> {
+                viewModelScope.launch {
+                    _events.send(SplitEvent.GoToSplitByPercentage(groupId, state.amount, desc))
+                }
+                return
+            }
+            SplitMethod.Equally -> Unit
+        }
+
         viewModelScope.launch {
             _uiState.update { it.copy(isCreating = true) }
-            expensesRepository.createExpense(
-                groupId = groupId,
-                description = state.description.trim().ifBlank { "Expense" },
-                amountCents = amountCents,
-                splitMethod = state.splitMethod.name
+            val members    = groupRepository.getMembers(groupId).first()
+            val allUserIds = listOf(CURRENT_USER_ID) + members.map { it.userId }
+            val splits     = splitEqually(amountCents, allUserIds)
+            groupRepository.addExpense(
+                GroupExpense(
+                    id           = UUID.randomUUID().toString(),
+                    groupId      = groupId,
+                    title        = desc,
+                    amountCents  = amountCents,
+                    paidByUserId = CURRENT_USER_ID,
+                    splits       = splits,
+                    createdAt    = LocalDate.now().toString()
+                )
             )
             _uiState.update { it.copy(isCreating = false) }
             _events.send(SplitEvent.Created)

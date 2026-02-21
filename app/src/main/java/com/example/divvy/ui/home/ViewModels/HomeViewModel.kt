@@ -2,7 +2,7 @@ package com.example.divvy.ui.home.ViewModels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.divvy.backend.GroupsRepository
+import com.example.divvy.backend.GroupRepository
 import com.example.divvy.components.GroupIcon
 import com.example.divvy.models.Group
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -38,24 +38,23 @@ data class HomeUiState(
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    private val groupsRepository: GroupsRepository
+    private val groupsRepository: GroupRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState(isLoading = true))
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
-    init { loadGroups() }
-
-    private fun loadGroups() {
+    init {
         viewModelScope.launch {
-            val groups = groupsRepository.listGroups()
-            _uiState.update {
-                it.copy(
-                    groups = groups,
-                    totalOwedCents = groups.filter { g -> g.balanceCents > 0 }.sumOf { g -> g.balanceCents },
-                    totalOwingCents = groups.filter { g -> g.balanceCents < 0 }.sumOf { g -> kotlin.math.abs(g.balanceCents) },
-                    isLoading = false
-                )
+            groupsRepository.listGroups().collect { groups ->
+                _uiState.update {
+                    it.copy(
+                        groups = groups,
+                        totalOwedCents  = groups.filter { g -> g.balanceCents > 0 }.sumOf { g -> g.balanceCents },
+                        totalOwingCents = groups.filter { g -> g.balanceCents < 0 }.sumOf { g -> kotlin.math.abs(g.balanceCents) },
+                        isLoading = false
+                    )
+                }
             }
         }
     }
@@ -75,8 +74,8 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isCreating = true) }
             groupsRepository.createGroup(_uiState.value.createName.trim(), _uiState.value.createIcon)
+            // No manual reload needed — listGroups() flow re-emits automatically.
             _uiState.update { it.copy(isCreating = false, showCreateGroupSheet = false) }
-            loadGroups()
         }
     }
 }
