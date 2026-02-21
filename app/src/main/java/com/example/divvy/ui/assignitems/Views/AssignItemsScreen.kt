@@ -26,13 +26,15 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.rounded.Edit
-
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -53,6 +55,7 @@ private val LightGray = Color(0xFFF5F5F5)
 private val BorderGray = Color(0xFFE8E8E8)
 private val TextGray = Color(0xFF999999)
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AssignItemsScreen(
     viewModel: AssignItemsViewModel,
@@ -65,23 +68,49 @@ fun AssignItemsScreen(
         viewModel.done.collect { onDone() }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.White)
-    ) {
-        TopBar(
-            onBack = onBack,
-            onNext = viewModel::onNext,
-            isSaving = uiState.isSaving
-        )
-
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = "Assign Items",
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back"
+                        )
+                    }
+                },
+                actions = {
+                    Box(
+                        modifier = Modifier
+                            .padding(end = 12.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Purple)
+                            .clickable(enabled = !uiState.isSaving, onClick = viewModel::onNext)
+                            .padding(horizontal = 20.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = if (uiState.isSaving) "..." else "Done",
+                            color = Color.White,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp
+                        )
+                    }
+                }
+            )
+        }
+    ) { innerPadding ->
         LazyColumn(
             modifier = Modifier
-                .weight(1f)
+                .fillMaxSize()
+                .padding(innerPadding)
                 .padding(horizontal = 24.dp)
         ) {
-            // Store info card
             item {
                 Spacer(Modifier.height(8.dp))
                 StoreInfoCard(
@@ -91,13 +120,11 @@ fun AssignItemsScreen(
                 Spacer(Modifier.height(18.dp))
             }
 
-            // Member chips
             item {
                 MemberChipsRow(members = uiState.members)
                 Spacer(Modifier.height(24.dp))
             }
 
-            // Section label
             item {
                 Text(
                     text = "TAP ITEMS TO ASSIGN",
@@ -109,7 +136,6 @@ fun AssignItemsScreen(
                 Spacer(Modifier.height(14.dp))
             }
 
-            // Item list
             items(uiState.items, key = { it.id }) { item ->
                 val isExpanded = uiState.expandedItemId == item.id
                 val assignedIds = uiState.assignments[item.id].orEmpty()
@@ -131,58 +157,6 @@ fun AssignItemsScreen(
             }
 
             item { Spacer(Modifier.height(24.dp)) }
-        }
-    }
-}
-
-@Composable
-private fun TopBar(
-    onBack: () -> Unit,
-    onNext: () -> Unit,
-    isSaving: Boolean
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(56.dp)
-            .background(Color.White)
-    ) {
-        IconButton(
-            onClick = onBack,
-            modifier = Modifier.align(Alignment.CenterStart)
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.ArrowBack,
-                contentDescription = "Back",
-                tint = Color.Black,
-                modifier = Modifier.size(24.dp)
-            )
-        }
-
-        Text(
-            text = "Assign Items",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            fontSize = 18.sp,
-            color = Color.Black,
-            modifier = Modifier.align(Alignment.Center)
-        )
-
-        Box(
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .padding(end = 12.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .background(Purple)
-                .clickable(enabled = !isSaving, onClick = onNext)
-                .padding(horizontal = 20.dp, vertical = 8.dp)
-        ) {
-            Text(
-                text = if (isSaving) "..." else "Next",
-                color = Color.White,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 14.sp
-            )
         }
     }
 }
@@ -227,7 +201,6 @@ private fun MemberChipsRow(members: List<AssignMember>) {
             Spacer(Modifier.width(8.dp))
         }
 
-        // Edit icon at the end
         Box(
             modifier = Modifier
                 .size(34.dp)

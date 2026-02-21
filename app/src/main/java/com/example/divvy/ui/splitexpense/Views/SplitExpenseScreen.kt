@@ -21,17 +21,19 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.rounded.AttachMoney
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Checklist
 import androidx.compose.material.icons.rounded.Percent
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -64,6 +66,7 @@ private val SubtitleGray = Color(0xFF888888)
 
 private val GradientBrush = Brush.horizontalGradient(listOf(Purple, Blue))
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SplitExpenseScreen(
     viewModel: SplitExpenseViewModel = hiltViewModel(),
@@ -85,87 +88,76 @@ fun SplitExpenseScreen(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.White)
-    ) {
-        TopBar(onBack = onBack)
-
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = "Split Expense",
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back"
+                        )
+                    }
+                }
+            )
+        }
+    ) { innerPadding ->
         Column(
             modifier = Modifier
-                .weight(1f)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp)
+                .fillMaxSize()
+                .background(Color.White)
+                .padding(innerPadding)
         ) {
-            Spacer(Modifier.height(8.dp))
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 24.dp)
+            ) {
+                Spacer(Modifier.height(8.dp))
 
-            AmountSection(
-                amount = uiState.amount,
-                onAmountChange = viewModel::onAmountChange
-            )
+                AmountSection(
+                    amount = uiState.amount,
+                    onAmountChange = viewModel::onAmountChange
+                )
 
-            Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(16.dp))
 
-            DescriptionField(
-                description = uiState.description,
-                onDescriptionChange = viewModel::onDescriptionChange
-            )
+                DescriptionField(
+                    description = uiState.description,
+                    onDescriptionChange = viewModel::onDescriptionChange
+                )
 
-            Spacer(Modifier.height(28.dp))
+                Spacer(Modifier.height(28.dp))
 
-            GroupSelectionSection(
-                groups = uiState.groups,
-                selectedGroupId = uiState.selectedGroupId,
-                onGroupSelected = viewModel::onGroupSelected
-            )
+                GroupSelectionSection(
+                    groups = uiState.groups,
+                    selectedGroupId = uiState.selectedGroupId,
+                    onGroupSelected = viewModel::onGroupSelected
+                )
 
-            Spacer(Modifier.height(28.dp))
+                Spacer(Modifier.height(28.dp))
 
-            SplitMethodSection(
-                selectedMethod = uiState.splitMethod,
-                onMethodSelected = viewModel::onSplitMethodSelected
-            )
+                SplitMethodSection(
+                    selectedMethod = uiState.splitMethod,
+                    onMethodSelected = viewModel::onSplitMethodSelected
+                )
 
-            Spacer(Modifier.height(32.dp))
-        }
+                Spacer(Modifier.height(32.dp))
+            }
 
-        CreateSplitButton(
-            enabled = uiState.amount.isNotBlank() && uiState.selectedGroupId != null,
-            isCreating = uiState.isCreating,
-            onClick = viewModel::onCreateSplit
-        )
-    }
-}
-
-@Composable
-private fun TopBar(onBack: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(56.dp)
-            .background(Color.White)
-    ) {
-        IconButton(
-            onClick = onBack,
-            modifier = Modifier.align(Alignment.CenterStart)
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.ArrowBack,
-                contentDescription = "Back",
-                tint = Color.Black,
-                modifier = Modifier.size(24.dp)
+            CreateSplitButton(
+                enabled = uiState.amount.isNotBlank() && uiState.selectedGroupId != null,
+                isCreating = uiState.isCreating,
+                onClick = viewModel::onCreateSplit
             )
         }
-
-        Text(
-            text = "Split Expense",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            fontSize = 18.sp,
-            color = Color.Black,
-            modifier = Modifier.align(Alignment.Center)
-        )
     }
 }
 
@@ -278,72 +270,66 @@ private fun GroupSelectionSection(
 
     Spacer(Modifier.height(14.dp))
 
-    Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
-        groups.forEachIndexed { index, group ->
-            val isSelected = group.id == selectedGroupId
-            if (isSelected) {
-                SelectedGroupItem(group = group, onClick = { onGroupSelected(group.id) })
-            } else {
-                UnselectedGroupItem(group = group, onClick = { onGroupSelected(group.id) })
-                if (index < groups.lastIndex && groups[index + 1].id != selectedGroupId) {
-                    HorizontalDivider(
-                        color = LightGray,
-                        thickness = 1.dp,
-                        modifier = Modifier.padding(vertical = 0.dp)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SelectedGroupItem(group: Group, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(GradientBrush)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 16.dp)
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(
-                text = "${group.name} ${group.icon.toEmoji()}",
-                color = Color.White,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 16.sp,
-                modifier = Modifier.weight(1f)
-            )
-
-            Icon(
-                imageVector = Icons.Rounded.Check,
-                contentDescription = "Selected",
-                tint = Color.White,
-                modifier = Modifier.size(22.dp)
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        groups.forEach { group ->
+            GroupCard(
+                group = group,
+                isSelected = group.id == selectedGroupId,
+                onClick = { onGroupSelected(group.id) }
             )
         }
     }
 }
 
 @Composable
-private fun UnselectedGroupItem(group: Group, onClick: () -> Unit) {
+private fun GroupCard(group: Group, isSelected: Boolean, onClick: () -> Unit) {
+    val borderColor = if (isSelected) Purple else BorderGray
+    val borderWidth = if (isSelected) 2.dp else 1.dp
+
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .border(borderWidth, borderColor, RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 16.dp)
+            .padding(horizontal = 16.dp, vertical = 14.dp)
     ) {
+        Box(
+            modifier = Modifier
+                .size(42.dp)
+                .clip(CircleShape)
+                .background(
+                    if (isSelected) GradientBrush
+                    else Brush.horizontalGradient(listOf(LightGray, LightGray))
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            GroupIcon(
+                icon = group.icon,
+                tint = if (isSelected) Color.White else Color.Gray,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+
+        Spacer(Modifier.width(14.dp))
+
         Text(
-            text = "${group.name} ${group.icon.toEmoji()}",
+            text = group.name,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 15.sp,
             color = Color.Black,
-            fontWeight = FontWeight.Medium,
-            fontSize = 16.sp
+            modifier = Modifier.weight(1f)
         )
+
+        if (isSelected) {
+            Icon(
+                imageVector = Icons.Rounded.Check,
+                contentDescription = "Selected",
+                tint = Purple,
+                modifier = Modifier.size(22.dp)
+            )
+        }
     }
 }
 
@@ -480,20 +466,3 @@ private fun SplitMethod.icon(): ImageVector = when (this) {
     SplitMethod.ByItems -> Icons.Rounded.Checklist
 }
 
-private fun GroupIcon.toEmoji(): String = when (this) {
-    GroupIcon.Home -> "\uD83C\uDFE0"
-    GroupIcon.Flight -> "\u2708\uFE0F"
-    GroupIcon.Restaurant -> "\uD83C\uDF71"
-    GroupIcon.Work -> "\uD83D\uDCBC"
-    GroupIcon.ShoppingBag -> "\uD83D\uDECD\uFE0F"
-    GroupIcon.Grocery -> "\uD83D\uDED2"
-    GroupIcon.Car -> "\uD83D\uDE97"
-    GroupIcon.School -> "\uD83C\uDFEB"
-    GroupIcon.Movie -> "\uD83C\uDFAC"
-    GroupIcon.Music -> "\uD83C\uDFB5"
-    GroupIcon.Pets -> "\uD83D\uDC3E"
-    GroupIcon.Celebration -> "\uD83C\uDF89"
-    GroupIcon.Gaming -> "\uD83C\uDFAE"
-    GroupIcon.Bank -> "\uD83C\uDFE6"
-    GroupIcon.Group -> "\uD83D\uDC65"
-}
