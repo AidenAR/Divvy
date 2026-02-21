@@ -39,7 +39,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.example.divvy.components.GroupIcon
 import com.example.divvy.models.Group
 import com.example.divvy.ui.creategroup.CreateGroupSheet
@@ -54,7 +54,8 @@ private val LightGray = Color(0xFFF5F5F5)
 
 @Composable
 fun HomeScreen(
-    viewModel: HomeViewModel = hiltViewModel()
+    viewModel: HomeViewModel = hiltViewModel(),
+    onGroupClick: (String) -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -112,7 +113,7 @@ fun HomeScreen(
             }
 
             items(uiState.groups) { group ->
-                HomeGroupCard(group = group, onClick = { /** TODO: Navigate to Group Details */ })
+                HomeGroupCard(group = group, onClick = { onGroupClick(group.id) })
                 Spacer(modifier = Modifier.height(10.dp))
             }
 
