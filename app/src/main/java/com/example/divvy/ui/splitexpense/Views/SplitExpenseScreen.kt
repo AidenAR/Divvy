@@ -67,12 +67,19 @@ private val GradientBrush = Brush.horizontalGradient(listOf(Purple, Blue))
 @Composable
 fun SplitExpenseScreen(
     viewModel: SplitExpenseViewModel = hiltViewModel(),
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onNavigateToAssignItems: (groupId: String, amount: String, description: String) -> Unit = { _, _, _ -> }
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
     LaunchedEffect(Unit) {
-        viewModel.splitCreated.collect { onBack() }
+        viewModel.events.collect { event ->
+            when (event) {
+                is SplitExpenseViewModel.SplitEvent.Created -> onBack()
+                is SplitExpenseViewModel.SplitEvent.GoToAssignItems ->
+                    onNavigateToAssignItems(event.groupId, event.amount, event.description)
+            }
+        }
     }
 
     Column(
