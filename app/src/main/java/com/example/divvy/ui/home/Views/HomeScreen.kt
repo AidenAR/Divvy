@@ -19,8 +19,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material3.Button
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -58,6 +60,7 @@ fun HomeScreen(
     onGroupClick: (String) -> Unit,
     onAddExpense: () -> Unit = {},
     onScanReceipt: () -> Unit = {},
+    onProfileClick: () -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -66,6 +69,26 @@ fun HomeScreen(
             .fillMaxSize()
             .background(Color.White)
     ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Divvy",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f)
+            )
+            IconButton(onClick = onProfileClick) {
+                Icon(
+                    imageVector = Icons.Filled.Person,
+                    contentDescription = "Profile"
+                )
+            }
+        }
+
         LazyColumn(
             modifier = Modifier
                 .weight(1f)
