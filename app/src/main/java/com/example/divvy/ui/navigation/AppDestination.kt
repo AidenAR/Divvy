@@ -20,6 +20,9 @@ sealed interface AppDestination {
         @Serializable data object Ledger   : BottomNav
         @Serializable data object Profile  : BottomNav
     }
+
+    @Serializable
+    data class GroupDetail(val groupId: String) : AppDestination
 }
 
 // UI metadata for the bottom bar — separate from the navigation contract
