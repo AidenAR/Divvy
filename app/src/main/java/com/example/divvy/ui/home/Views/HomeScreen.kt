@@ -22,15 +22,18 @@ import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material3.Button
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Icon
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -54,6 +57,7 @@ private val RedText = Color(0xFFC62828)
 private val Purple = Color(0xFF7C4DFF)
 private val LightGray = Color(0xFFF5F5F5)
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
@@ -64,104 +68,106 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.White)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "Divvy",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.weight(1f)
-            )
-            IconButton(onClick = onProfileClick) {
-                Icon(
-                    imageVector = Icons.Filled.Person,
-                    contentDescription = "Profile"
-                )
-            }
-        }
-
-        LazyColumn(
-            modifier = Modifier
-                .weight(1f)
-                .padding(horizontal = 20.dp),
-        ) {
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Your balances",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color.Gray
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-            }
-
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    BalanceCard(
-                        label = "You are owed",
-                        amount = uiState.formattedOwed,
-                        backgroundColor = GreenBg,
-                        textColor = GreenText,
-                        modifier = Modifier.weight(1f)
-                    )
-                    BalanceCard(
-                        label = "You owe",
-                        amount = uiState.formattedOwing,
-                        backgroundColor = RedBg,
-                        textColor = RedText,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-                Spacer(modifier = Modifier.height(28.dp))
-            }
-
-            item {
-                Text(
-                    text = "GROUPS",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = Color.Gray,
-                    letterSpacing = 1.sp
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-            }
-
-            items(uiState.groups) { group ->
-                HomeGroupCard(group = group, onClick = { onGroupClick(group.id) })
-                Spacer(modifier = Modifier.height(10.dp))
-            }
-
-            item {
-                Spacer(modifier = Modifier.height(4.dp))
-                TextButton(
-                    onClick = viewModel::onCreateGroupClick,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
                     Text(
-                        text = "+ Create New Group",
-                        color = Color.Gray,
-                        fontWeight = FontWeight.Medium
+                        text = "Divvy",
+                        fontWeight = FontWeight.Bold
                     )
+                },
+                actions = {
+                    IconButton(onClick = onProfileClick) {
+                        Icon(
+                            imageVector = Icons.Filled.Person,
+                            contentDescription = "Profile"
+                        )
+                    }
                 }
-                Spacer(modifier = Modifier.height(16.dp))
-            }
+            )
         }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.White)
+                .padding(innerPadding)
+        ) {
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 20.dp),
+            ) {
+                item {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Your balances",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.Gray
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
 
-        BottomActionBar(
-            onScanReceipt = onScanReceipt,
-            onAddExpense = onAddExpense
-        )
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        BalanceCard(
+                            label = "You are owed",
+                            amount = uiState.formattedOwed,
+                            backgroundColor = GreenBg,
+                            textColor = GreenText,
+                            modifier = Modifier.weight(1f)
+                        )
+                        BalanceCard(
+                            label = "You owe",
+                            amount = uiState.formattedOwing,
+                            backgroundColor = RedBg,
+                            textColor = RedText,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(28.dp))
+                }
+
+                item {
+                    Text(
+                        text = "GROUPS",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Color.Gray,
+                        letterSpacing = 1.sp
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+
+                items(uiState.groups) { group ->
+                    HomeGroupCard(group = group, onClick = { onGroupClick(group.id) })
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+
+                item {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    TextButton(
+                        onClick = viewModel::onCreateGroupClick,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "+ Create New Group",
+                            color = Color.Gray,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+            }
+
+            BottomActionBar(
+                onScanReceipt = onScanReceipt,
+                onAddExpense = onAddExpense
+            )
+        }
     }
 
     if (uiState.showCreateGroupSheet) {
@@ -227,7 +233,6 @@ private fun HomeGroupCard(
                 .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Group icon in a tinted circle
             Box(
                 modifier = Modifier
                     .size(36.dp)
@@ -280,7 +285,6 @@ private fun BottomActionBar(
             .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Scan Receipt — solid purple pill, flush left
         Button(
             onClick = onScanReceipt,
             shape = RoundedCornerShape(24.dp),
@@ -304,7 +308,6 @@ private fun BottomActionBar(
 
         Spacer(modifier = Modifier.weight(1f))
 
-        // Add Expense — outlined style, flush right
         OutlinedButton(
             onClick = onAddExpense,
             shape = RoundedCornerShape(24.dp),

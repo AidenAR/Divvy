@@ -34,14 +34,18 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.FlashOn
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -74,6 +78,7 @@ private val GreenCheck = Color(0xFF4CAF50)
 
 private enum class ScanState { Idle, Scanning, Done }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ScanReceiptScreen(
     onBack: () -> Unit,
@@ -114,76 +119,127 @@ fun ScanReceiptScreen(
         }
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black)
-    ) {
-        if (hasCameraPermission) {
-            AndroidView(
-                factory = { ctx ->
-                    val previewView = PreviewView(ctx)
-                    val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
-                    cameraProviderFuture.addListener({
-                        val cameraProvider = cameraProviderFuture.get()
-                        val preview = Preview.Builder().build().also {
-                            it.surfaceProvider = previewView.surfaceProvider
-                        }
-                        try {
-                            cameraProvider.unbindAll()
-                            cameraProvider.bindToLifecycle(
-                                lifecycleOwner,
-                                CameraSelector.DEFAULT_BACK_CAMERA,
-                                preview
-                            )
-                        } catch (_: Exception) { }
-                    }, ContextCompat.getMainExecutor(ctx))
-                    previewView
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = "Scan Receipt",
+                        color = Color.White,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 },
-                modifier = Modifier.fillMaxSize()
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color.White
+                        )
+                    }
+                },
+                actions = {
+                    Row(
+                        modifier = Modifier
+                            .padding(end = 12.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(YellowBadge)
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.FlashOn,
+                            contentDescription = null,
+                            tint = Color.Black,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Auto-detect ON",
+                            color = Color.Black,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Black,
+                    navigationIconContentColor = Color.White,
+                    titleContentColor = Color.White
+                )
             )
-        }
-
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally
+        },
+        containerColor = Color.Black
+    ) { innerPadding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+                .padding(innerPadding)
         ) {
-            TopBar(onBack = onBack)
+            if (hasCameraPermission) {
+                AndroidView(
+                    factory = { ctx ->
+                        val previewView = PreviewView(ctx)
+                        val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
+                        cameraProviderFuture.addListener({
+                            val cameraProvider = cameraProviderFuture.get()
+                            val preview = Preview.Builder().build().also {
+                                it.surfaceProvider = previewView.surfaceProvider
+                            }
+                            try {
+                                cameraProvider.unbindAll()
+                                cameraProvider.bindToLifecycle(
+                                    lifecycleOwner,
+                                    CameraSelector.DEFAULT_BACK_CAMERA,
+                                    preview
+                                )
+                            } catch (_: Exception) { }
+                        }, ContextCompat.getMainExecutor(ctx))
+                        previewView
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
 
-            Spacer(modifier = Modifier.weight(1f))
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Spacer(modifier = Modifier.weight(1f))
 
-            ReceiptFrame()
+                ReceiptFrame()
 
-            Spacer(modifier = Modifier.weight(1f))
+                Spacer(modifier = Modifier.weight(1f))
 
-            Text(
-                text = "Align receipt within frame for best results",
-                color = Color.White.copy(alpha = 0.7f),
-                fontSize = 13.sp,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(bottom = 20.dp)
-            )
+                Text(
+                    text = "Align receipt within frame for best results",
+                    color = Color.White.copy(alpha = 0.7f),
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(bottom = 20.dp)
+                )
 
-            CaptureControls(
-                isScanning = scanState != ScanState.Idle,
-                onCapture = { if (scanState == ScanState.Idle) scanState = ScanState.Scanning }
-            )
+                CaptureControls(
+                    isScanning = scanState != ScanState.Idle,
+                    onCapture = { if (scanState == ScanState.Idle) scanState = ScanState.Scanning }
+                )
 
-            Text(
-                text = "Tap to capture receipt",
-                color = Color.White.copy(alpha = 0.5f),
-                fontSize = 12.sp,
-                modifier = Modifier.padding(top = 12.dp, bottom = 32.dp)
-            )
-        }
+                Text(
+                    text = "Tap to capture receipt",
+                    color = Color.White.copy(alpha = 0.5f),
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(top = 12.dp, bottom = 32.dp)
+                )
+            }
 
-        // Scanning overlay
-        AnimatedVisibility(
-            visible = scanState != ScanState.Idle,
-            enter = fadeIn(tween(300)),
-            exit = fadeOut(tween(300))
-        ) {
-            ScanningOverlay(scanState = scanState)
+            AnimatedVisibility(
+                visible = scanState != ScanState.Idle,
+                enter = fadeIn(tween(300)),
+                exit = fadeOut(tween(300))
+            ) {
+                ScanningOverlay(scanState = scanState)
+            }
         }
     }
 }
@@ -274,49 +330,6 @@ private fun ScanningOverlay(scanState: ScanState) {
 }
 
 @Composable
-private fun TopBar(onBack: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        IconButton(onClick = onBack) {
-            Icon(
-                imageVector = Icons.Rounded.ArrowBack,
-                contentDescription = "Back",
-                tint = Color.White,
-                modifier = Modifier.size(24.dp)
-            )
-        }
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        Row(
-            modifier = Modifier
-                .clip(RoundedCornerShape(16.dp))
-                .background(YellowBadge)
-                .padding(horizontal = 12.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.FlashOn,
-                contentDescription = null,
-                tint = Color.Black,
-                modifier = Modifier.size(14.dp)
-            )
-            Spacer(modifier = Modifier.width(4.dp))
-            Text(
-                text = "Auto-detect ON",
-                color = Color.Black,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
-    }
-}
-
-@Composable
 private fun ReceiptFrame() {
     Box(
         modifier = Modifier
@@ -331,22 +344,18 @@ private fun ReceiptFrame() {
             val w = size.width
             val h = size.height
 
-            // Top-left
             drawLine(Color.White, Offset(0f, radius), Offset(0f, cornerLen), strokeWidth = strokeW)
             drawArc(Color.White, 180f, 90f, false, Offset.Zero, Size(radius * 2, radius * 2), style = Stroke(strokeW, cap = StrokeCap.Round))
             drawLine(Color.White, Offset(radius, 0f), Offset(cornerLen, 0f), strokeWidth = strokeW)
 
-            // Top-right
             drawLine(Color.White, Offset(w, radius), Offset(w, cornerLen), strokeWidth = strokeW)
             drawArc(Color.White, 270f, 90f, false, Offset(w - radius * 2, 0f), Size(radius * 2, radius * 2), style = Stroke(strokeW, cap = StrokeCap.Round))
             drawLine(Color.White, Offset(w - radius, 0f), Offset(w - cornerLen, 0f), strokeWidth = strokeW)
 
-            // Bottom-left
             drawLine(Color.White, Offset(0f, h - radius), Offset(0f, h - cornerLen), strokeWidth = strokeW)
             drawArc(Color.White, 90f, 90f, false, Offset(0f, h - radius * 2), Size(radius * 2, radius * 2), style = Stroke(strokeW, cap = StrokeCap.Round))
             drawLine(Color.White, Offset(radius, h), Offset(cornerLen, h), strokeWidth = strokeW)
 
-            // Bottom-right
             drawLine(Color.White, Offset(w, h - radius), Offset(w, h - cornerLen), strokeWidth = strokeW)
             drawArc(Color.White, 0f, 90f, false, Offset(w - radius * 2, h - radius * 2), Size(radius * 2, radius * 2), style = Stroke(strokeW, cap = StrokeCap.Round))
             drawLine(Color.White, Offset(w - radius, h), Offset(w - cornerLen, h), strokeWidth = strokeW)

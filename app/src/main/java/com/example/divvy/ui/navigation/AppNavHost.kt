@@ -1,7 +1,6 @@
 package com.example.divvy.ui.navigation
 
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -18,13 +17,11 @@ import com.example.divvy.ui.splitexpense.Views.SplitExpenseScreen
 
 @Composable
 fun AppNavHost(
-    navController: NavHostController,
-    modifier: Modifier = Modifier
+    navController: NavHostController
 ) {
     NavHost(
         navController = navController,
-        startDestination = AppDestination.Home,
-        modifier = modifier
+        startDestination = AppDestination.Home
     ) {
         composable<AppDestination.Home> {
             HomeScreen(

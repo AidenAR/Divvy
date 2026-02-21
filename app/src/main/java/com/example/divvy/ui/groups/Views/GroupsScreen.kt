@@ -20,9 +20,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -39,66 +42,55 @@ import com.example.divvy.ui.groups.ViewModels.GroupsViewModel
 
 private val Purple = Color(0xFF7C4DFF)
 
-// Background tints for each group card icon
 private val groupColors = listOf(
-    Color(0xFFA5D6A7), // soft green
-    Color(0xFF90CAF9), // soft blue
-    Color(0xFFCE93D8), // soft purple
-    Color(0xFFFFCC80), // soft orange
-    Color(0xFFEF9A9A), // soft red
+    Color(0xFFA5D6A7),
+    Color(0xFF90CAF9),
+    Color(0xFFCE93D8),
+    Color(0xFFFFCC80),
+    Color(0xFFEF9A9A),
 )
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GroupsScreen(
     viewModel: GroupsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.White)
-    ) {
-        // Header row: title + add button
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Title
-            Text(
-                text = "Manage Groups",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.Black,
-                modifier = Modifier.weight(1f).padding(start = 8.dp)
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = "Manage Groups",
+                        fontWeight = FontWeight.SemiBold
+                    )
+                },
+                actions = {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Purple)
+                            .clickable { /* TODO: create new group */ },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Add,
+                            contentDescription = "Add group",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                }
             )
-
-            // Add group button
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(Purple)
-                    .clickable { /* TODO: create new group */ },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Add,
-                    contentDescription = "Add group",
-                    tint = Color.White,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
         }
-
-        // Group list
+    ) { innerPadding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
+                .padding(innerPadding)
                 .padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
@@ -139,7 +131,6 @@ private fun ManageGroupCard(
                 .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Group icon in a colored rounded box
             Box(
                 modifier = Modifier
                     .size(36.dp)
@@ -156,7 +147,6 @@ private fun ManageGroupCard(
 
             Spacer(modifier = Modifier.width(12.dp))
 
-            // Name and member count
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = group.name,

@@ -21,17 +21,20 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.rounded.AttachMoney
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Checklist
 import androidx.compose.material.icons.rounded.Percent
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -64,6 +67,7 @@ private val SubtitleGray = Color(0xFF888888)
 
 private val GradientBrush = Brush.horizontalGradient(listOf(Purple, Blue))
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SplitExpenseScreen(
     viewModel: SplitExpenseViewModel = hiltViewModel(),
@@ -85,87 +89,76 @@ fun SplitExpenseScreen(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.White)
-    ) {
-        TopBar(onBack = onBack)
-
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = "Split Expense",
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back"
+                        )
+                    }
+                }
+            )
+        }
+    ) { innerPadding ->
         Column(
             modifier = Modifier
-                .weight(1f)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp)
+                .fillMaxSize()
+                .background(Color.White)
+                .padding(innerPadding)
         ) {
-            Spacer(Modifier.height(8.dp))
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 24.dp)
+            ) {
+                Spacer(Modifier.height(8.dp))
 
-            AmountSection(
-                amount = uiState.amount,
-                onAmountChange = viewModel::onAmountChange
-            )
+                AmountSection(
+                    amount = uiState.amount,
+                    onAmountChange = viewModel::onAmountChange
+                )
 
-            Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(16.dp))
 
-            DescriptionField(
-                description = uiState.description,
-                onDescriptionChange = viewModel::onDescriptionChange
-            )
+                DescriptionField(
+                    description = uiState.description,
+                    onDescriptionChange = viewModel::onDescriptionChange
+                )
 
-            Spacer(Modifier.height(28.dp))
+                Spacer(Modifier.height(28.dp))
 
-            GroupSelectionSection(
-                groups = uiState.groups,
-                selectedGroupId = uiState.selectedGroupId,
-                onGroupSelected = viewModel::onGroupSelected
-            )
+                GroupSelectionSection(
+                    groups = uiState.groups,
+                    selectedGroupId = uiState.selectedGroupId,
+                    onGroupSelected = viewModel::onGroupSelected
+                )
 
-            Spacer(Modifier.height(28.dp))
+                Spacer(Modifier.height(28.dp))
 
-            SplitMethodSection(
-                selectedMethod = uiState.splitMethod,
-                onMethodSelected = viewModel::onSplitMethodSelected
-            )
+                SplitMethodSection(
+                    selectedMethod = uiState.splitMethod,
+                    onMethodSelected = viewModel::onSplitMethodSelected
+                )
 
-            Spacer(Modifier.height(32.dp))
-        }
+                Spacer(Modifier.height(32.dp))
+            }
 
-        CreateSplitButton(
-            enabled = uiState.amount.isNotBlank() && uiState.selectedGroupId != null,
-            isCreating = uiState.isCreating,
-            onClick = viewModel::onCreateSplit
-        )
-    }
-}
-
-@Composable
-private fun TopBar(onBack: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(56.dp)
-            .background(Color.White)
-    ) {
-        IconButton(
-            onClick = onBack,
-            modifier = Modifier.align(Alignment.CenterStart)
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.ArrowBack,
-                contentDescription = "Back",
-                tint = Color.Black,
-                modifier = Modifier.size(24.dp)
+            CreateSplitButton(
+                enabled = uiState.amount.isNotBlank() && uiState.selectedGroupId != null,
+                isCreating = uiState.isCreating,
+                onClick = viewModel::onCreateSplit
             )
         }
-
-        Text(
-            text = "Split Expense",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            fontSize = 18.sp,
-            color = Color.Black,
-            modifier = Modifier.align(Alignment.Center)
-        )
     }
 }
 

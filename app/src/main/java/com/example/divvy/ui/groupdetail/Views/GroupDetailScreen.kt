@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -30,11 +31,14 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -49,7 +53,6 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -68,13 +71,14 @@ private val GreenBadgeBg = Color(0xFFE8F5E9)
 private val RedBadgeBg = Color(0xFFFCE4EC)
 
 private val avatarColors = listOf(
-    Color(0xFF7C4DFF), // purple
-    Color(0xFF2E7D32), // green
-    Color(0xFFE65100), // orange
-    Color(0xFF1565C0), // blue
-    Color(0xFF00695C), // teal
+    Color(0xFF7C4DFF),
+    Color(0xFF2E7D32),
+    Color(0xFFE65100),
+    Color(0xFF1565C0),
+    Color(0xFF00695C),
 )
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GroupDetailScreen(
     groupId: String,
@@ -92,43 +96,46 @@ fun GroupDetailScreen(
         if (uiState.leftGroup) onLeaveGroup()
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color.White)) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            // Top bar
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back"
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = uiState.group.name,
+                        fontWeight = FontWeight.SemiBold
                     )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back"
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { viewModel.onGearClick() }) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Manage Group"
+                        )
+                    }
                 }
-                Text(
-                    text = uiState.group.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.weight(1f)
-                )
-                IconButton(onClick = { viewModel.onGearClick() }) {
-                    Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = "Manage Group"
-                    )
-                }
-            }
-
+            )
+        }
+    ) { innerPadding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.White)
+                .padding(innerPadding)
+        ) {
             LazyColumn(
                 modifier = Modifier
-                    .weight(1f)
+                    .fillMaxSize()
                     .padding(horizontal = 16.dp),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 96.dp)
+                contentPadding = PaddingValues(bottom = 96.dp)
             ) {
-                // Manage group panel
                 item {
                     AnimatedVisibility(visible = uiState.showManagePanel) {
                         Column {
@@ -145,14 +152,12 @@ fun GroupDetailScreen(
                     }
                 }
 
-                // Balance summary card
                 item {
                     Spacer(modifier = Modifier.height(8.dp))
                     BalanceSummaryCard(balanceCents = uiState.group.balanceCents)
                     Spacer(modifier = Modifier.height(24.dp))
                 }
 
-                // BALANCES section
                 item {
                     SectionLabel("BALANCES")
                     Spacer(modifier = Modifier.height(10.dp))
@@ -174,7 +179,6 @@ fun GroupDetailScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                 }
 
-                // ACTIVITY section
                 item {
                     Spacer(modifier = Modifier.height(8.dp))
                     SectionLabel("ACTIVITY")
@@ -185,26 +189,25 @@ fun GroupDetailScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                 }
             }
-        }
 
-        // Fixed "Add New Expense" gradient button
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(16.dp)
-                .fillMaxWidth()
-                .height(54.dp)
-                .clip(RoundedCornerShape(50.dp))
-                .background(Brush.horizontalGradient(listOf(Purple, Blue)))
-                .clickable { onAddExpense() },
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "Add New Expense",
-                color = Color.White,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 16.sp
-            )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(16.dp)
+                    .fillMaxWidth()
+                    .height(54.dp)
+                    .clip(RoundedCornerShape(50.dp))
+                    .background(Brush.horizontalGradient(listOf(Purple, Blue)))
+                    .clickable { onAddExpense() },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Add New Expense",
+                    color = Color.White,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 16.sp
+                )
+            }
         }
     }
 }
@@ -224,7 +227,6 @@ private fun ManageGroupCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column {
-            // Invite link row
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -274,7 +276,6 @@ private fun ManageGroupCard(
                 color = Color(0xFFF0F0F0)
             )
 
-            // Leave group row
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -371,7 +372,6 @@ private fun MemberBalanceCard(
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        // Avatar + name + balance row
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -411,7 +411,6 @@ private fun MemberBalanceCard(
             )
         }
 
-        // Settle panel
         AnimatedVisibility(visible = isExpanded) {
             Column(
                 modifier = Modifier
@@ -427,7 +426,6 @@ private fun MemberBalanceCard(
                 )
                 Spacer(Modifier.height(10.dp))
 
-                // Mode chips
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     SettleChip(
                         label = "Paid Fully",
@@ -441,7 +439,6 @@ private fun MemberBalanceCard(
                     )
                 }
 
-                // Amount input — only for Partially
                 AnimatedVisibility(visible = settleMode == SettleMode.Partially) {
                     Column {
                         Spacer(Modifier.height(10.dp))
@@ -480,7 +477,6 @@ private fun MemberBalanceCard(
 
                 Spacer(Modifier.height(12.dp))
 
-                // Confirm button
                 val canConfirm = settleMode != null &&
                     (settleMode == SettleMode.Fully || settleAmount.toDoubleOrNull()?.let { it > 0 } == true)
                 val buttonBrush = if (canConfirm && !isSettling)
