@@ -12,6 +12,7 @@ import com.example.divvy.ui.groups.Views.GroupsScreen
 import com.example.divvy.ui.home.Views.HomeScreen
 import com.example.divvy.ui.ledger.Views.LedgerScreen
 import com.example.divvy.ui.profile.Views.ProfileScreen
+import com.example.divvy.ui.splitexpense.Views.SplitExpenseScreen
 
 @Composable
 fun AppNavHost(
@@ -25,7 +26,8 @@ fun AppNavHost(
     ) {
         composable<AppDestination.BottomNav.Home>     {
             HomeScreen(
-                onGroupClick = { id -> navController.navigate(AppDestination.GroupDetail(id)) }
+                onGroupClick = { id -> navController.navigate(AppDestination.GroupDetail(id)) },
+                onAddExpense = { navController.navigate(AppDestination.SplitExpense) }
             )
         }
         composable<AppDestination.BottomNav.Groups>   { GroupsScreen() }
@@ -36,6 +38,11 @@ fun AppNavHost(
             val dest: AppDestination.GroupDetail = backStack.toRoute()
             GroupDetailScreen(
                 groupId = dest.groupId,
+                onBack = { navController.popBackStack() }
+            )
+        }
+        composable<AppDestination.SplitExpense> {
+            SplitExpenseScreen(
                 onBack = { navController.popBackStack() }
             )
         }

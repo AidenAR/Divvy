@@ -23,6 +23,9 @@ sealed interface AppDestination {
 
     @Serializable
     data class GroupDetail(val groupId: String) : AppDestination
+
+    @Serializable
+    data object SplitExpense : AppDestination
 }
 
 // UI metadata for the bottom bar — separate from the navigation contract
