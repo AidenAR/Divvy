@@ -56,6 +56,7 @@ private val LightGray = Color(0xFFF5F5F5)
 fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
     onGroupClick: (String) -> Unit,
+    onAddExpense: () -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -135,7 +136,7 @@ fun HomeScreen(
 
         BottomActionBar(
             onScanReceipt = { /* TODO */ },
-            onAddExpense = { /* TODO */ }
+            onAddExpense = onAddExpense
         )
     }
 
