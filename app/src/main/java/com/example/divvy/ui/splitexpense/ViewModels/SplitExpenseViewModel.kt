@@ -43,8 +43,9 @@ class SplitExpenseViewModel @Inject constructor(
     private val groupRepository: GroupRepository
 ) : ViewModel() {
 
-    private val scannedAmount: String      = savedStateHandle["scannedAmount"]      ?: ""
-    private val scannedDescription: String = savedStateHandle["scannedDescription"] ?: ""
+    private val scannedAmount: String       = savedStateHandle["scannedAmount"]       ?: ""
+    private val scannedDescription: String  = savedStateHandle["scannedDescription"]  ?: ""
+    private val preselectedGroupId: String  = savedStateHandle["preselectedGroupId"]  ?: ""
 
     private val _uiState = MutableStateFlow(
         SplitExpenseUiState(
@@ -70,8 +71,10 @@ class SplitExpenseViewModel @Inject constructor(
                 _uiState.update { current ->
                     current.copy(
                         groups = groups,
-                        // Preserve selection once set; default to first group on first emission.
-                        selectedGroupId = current.selectedGroupId ?: groups.firstOrNull()?.id,
+                        // Preserve selection once set; prefer preselected group, then first group.
+                        selectedGroupId = current.selectedGroupId
+                            ?: preselectedGroupId.takeIf { it.isNotEmpty() }
+                            ?: groups.firstOrNull()?.id,
                         isLoading = false
                     )
                 }

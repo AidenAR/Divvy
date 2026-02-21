@@ -50,6 +50,9 @@ fun AppNavHost(
                         route = AppDestination.BottomNav.Home,
                         inclusive = false
                     )
+                },
+                onAddExpense = {
+                    navController.navigate(AppDestination.SplitExpense(preselectedGroupId = dest.groupId))
                 }
             )
         }
