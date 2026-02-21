@@ -58,6 +58,11 @@ class SplitExpenseViewModel @Inject constructor(
             val amount: String,
             val description: String
         ) : SplitEvent
+        data class GoToSplitByPercentage(
+            val groupId: String,
+            val amount: String,
+            val description: String
+        ) : SplitEvent
     }
 
     private val _events = Channel<SplitEvent>(Channel.BUFFERED)
@@ -104,15 +109,18 @@ class SplitExpenseViewModel @Inject constructor(
         val groupId = state.selectedGroupId ?: return
         if (state.amount.toDoubleOrNull() == null) return
 
+        val desc = state.description.trim().ifBlank { "Expense" }
+
         if (state.splitMethod == SplitMethod.ByItems) {
             viewModelScope.launch {
-                _events.send(
-                    SplitEvent.GoToAssignItems(
-                        groupId = groupId,
-                        amount = state.amount,
-                        description = state.description.trim().ifBlank { "Expense" }
-                    )
-                )
+                _events.send(SplitEvent.GoToAssignItems(groupId, state.amount, desc))
+            }
+            return
+        }
+
+        if (state.splitMethod == SplitMethod.ByPercentage) {
+            viewModelScope.launch {
+                _events.send(SplitEvent.GoToSplitByPercentage(groupId, state.amount, desc))
             }
             return
         }

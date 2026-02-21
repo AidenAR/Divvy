@@ -68,7 +68,8 @@ private val GradientBrush = Brush.horizontalGradient(listOf(Purple, Blue))
 fun SplitExpenseScreen(
     viewModel: SplitExpenseViewModel = hiltViewModel(),
     onBack: () -> Unit,
-    onNavigateToAssignItems: (groupId: String, amount: String, description: String) -> Unit = { _, _, _ -> }
+    onNavigateToAssignItems: (groupId: String, amount: String, description: String) -> Unit = { _, _, _ -> },
+    onNavigateToSplitByPercentage: (groupId: String, amount: String, description: String) -> Unit = { _, _, _ -> }
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -78,6 +79,8 @@ fun SplitExpenseScreen(
                 is SplitExpenseViewModel.SplitEvent.Created -> onBack()
                 is SplitExpenseViewModel.SplitEvent.GoToAssignItems ->
                     onNavigateToAssignItems(event.groupId, event.amount, event.description)
+                is SplitExpenseViewModel.SplitEvent.GoToSplitByPercentage ->
+                    onNavigateToSplitByPercentage(event.groupId, event.amount, event.description)
             }
         }
     }

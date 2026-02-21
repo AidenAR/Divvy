@@ -8,6 +8,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import com.example.divvy.ui.assignitems.ViewModels.AssignItemsViewModel
 import com.example.divvy.ui.assignitems.Views.AssignItemsScreen
+import com.example.divvy.ui.splitpercentage.ViewModels.SplitByPercentageViewModel
+import com.example.divvy.ui.splitpercentage.Views.SplitByPercentageScreen
 import com.example.divvy.ui.expenses.Views.ExpensesScreen
 import com.example.divvy.ui.groupdetail.Views.GroupDetailScreen
 import com.example.divvy.ui.groups.Views.GroupsScreen
@@ -65,6 +67,31 @@ fun AppNavHost(
                 onNavigateToAssignItems = { groupId, amount, description ->
                     navController.navigate(
                         AppDestination.AssignItems(groupId, amount, description)
+                    )
+                },
+                onNavigateToSplitByPercentage = { groupId, amount, description ->
+                    navController.navigate(
+                        AppDestination.SplitByPercentage(groupId, amount, description)
+                    )
+                }
+            )
+        }
+        composable<AppDestination.SplitByPercentage> { backStack ->
+            val dest: AppDestination.SplitByPercentage = backStack.toRoute()
+            val viewModel = androidx.hilt.navigation.compose.hiltViewModel<
+                SplitByPercentageViewModel, SplitByPercentageViewModel.Factory
+            >(
+                creationCallback = { factory ->
+                    factory.create(dest.groupId, dest.amountDisplay, dest.description)
+                }
+            )
+            SplitByPercentageScreen(
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() },
+                onDone = {
+                    navController.popBackStack(
+                        route = AppDestination.BottomNav.Home,
+                        inclusive = false
                     )
                 }
             )
