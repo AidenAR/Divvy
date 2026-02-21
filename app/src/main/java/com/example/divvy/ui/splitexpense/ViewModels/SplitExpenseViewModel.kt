@@ -40,8 +40,17 @@ class SplitExpenseViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(SplitExpenseUiState(isLoading = true))
     val uiState: StateFlow<SplitExpenseUiState> = _uiState.asStateFlow()
 
-    private val _splitCreated = Channel<Unit>(Channel.BUFFERED)
-    val splitCreated = _splitCreated.receiveAsFlow()
+    sealed interface SplitEvent {
+        data object Created : SplitEvent
+        data class GoToAssignItems(
+            val groupId: String,
+            val amount: String,
+            val description: String
+        ) : SplitEvent
+    }
+
+    private val _events = Channel<SplitEvent>(Channel.BUFFERED)
+    val events = _events.receiveAsFlow()
 
     init { loadGroups() }
 
@@ -82,8 +91,22 @@ class SplitExpenseViewModel @Inject constructor(
     fun onCreateSplit() {
         val state = _uiState.value
         val groupId = state.selectedGroupId ?: return
-        val amountCents = ((state.amount.toDoubleOrNull() ?: return) * 100).toLong()
+        if (state.amount.toDoubleOrNull() == null) return
 
+        if (state.splitMethod == SplitMethod.ByItems) {
+            viewModelScope.launch {
+                _events.send(
+                    SplitEvent.GoToAssignItems(
+                        groupId = groupId,
+                        amount = state.amount,
+                        description = state.description.trim().ifBlank { "Expense" }
+                    )
+                )
+            }
+            return
+        }
+
+        val amountCents = (state.amount.toDouble() * 100).toLong()
         viewModelScope.launch {
             _uiState.update { it.copy(isCreating = true) }
             expensesRepository.createExpense(
@@ -93,7 +116,7 @@ class SplitExpenseViewModel @Inject constructor(
                 splitMethod = state.splitMethod.name
             )
             _uiState.update { it.copy(isCreating = false) }
-            _splitCreated.send(Unit)
+            _events.send(SplitEvent.Created)
         }
     }
 }

@@ -6,6 +6,8 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
+import com.example.divvy.ui.assignitems.ViewModels.AssignItemsViewModel
+import com.example.divvy.ui.assignitems.Views.AssignItemsScreen
 import com.example.divvy.ui.expenses.Views.ExpensesScreen
 import com.example.divvy.ui.groupdetail.Views.GroupDetailScreen
 import com.example.divvy.ui.groups.Views.GroupsScreen
@@ -43,7 +45,32 @@ fun AppNavHost(
         }
         composable<AppDestination.SplitExpense> {
             SplitExpenseScreen(
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onNavigateToAssignItems = { groupId, amount, description ->
+                    navController.navigate(
+                        AppDestination.AssignItems(groupId, amount, description)
+                    )
+                }
+            )
+        }
+        composable<AppDestination.AssignItems> { backStack ->
+            val dest: AppDestination.AssignItems = backStack.toRoute()
+            val viewModel = androidx.hilt.navigation.compose.hiltViewModel<
+                AssignItemsViewModel, AssignItemsViewModel.Factory
+            >(
+                creationCallback = { factory ->
+                    factory.create(dest.groupId, dest.amountDisplay, dest.description)
+                }
+            )
+            AssignItemsScreen(
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() },
+                onDone = {
+                    navController.popBackStack(
+                        route = AppDestination.BottomNav.Home,
+                        inclusive = false
+                    )
+                }
             )
         }
     }
