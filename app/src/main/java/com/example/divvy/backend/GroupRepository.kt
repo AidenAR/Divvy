@@ -36,6 +36,7 @@ interface GroupRepository {
     // --- Expenses ---
     suspend fun addExpense(expense: GroupExpense)
     suspend fun leaveGroup(groupId: String)
+    fun getAllExpenses(): Flow<List<GroupExpense>>
 
     // --- Derived (computed from expenses + members) ---
     fun getMemberBalances(groupId: String): Flow<List<MemberBalance>>
@@ -97,6 +98,18 @@ class StubGroupRepository @Inject constructor() : GroupRepository {
                     ExpenseSplit("u_sarah",   2275)
                 ),
                 createdAt = "2026-02-19"
+            ),
+            GroupExpense(
+                id = "s1", groupId = "g1", title = "Settlement",
+                amountCents = 5000, paidByUserId = "u_sarah",
+                splits = listOf(ExpenseSplit(ME, 5000)),
+                createdAt = "2026-02-20"
+            ),
+            GroupExpense(
+                id = "s2", groupId = "g1", title = "Settlement",
+                amountCents = 7800, paidByUserId = "u_mike",
+                splits = listOf(ExpenseSplit(ME, 7800)),
+                createdAt = "2026-02-17"
             )
         )
 
@@ -135,6 +148,12 @@ class StubGroupRepository @Inject constructor() : GroupRepository {
                     ExpenseSplit("u_riley",    1780)
                 ),
                 createdAt = "2026-02-13"
+            ),
+            GroupExpense(
+                id = "s3", groupId = "g2", title = "Settlement",
+                amountCents = 3400, paidByUserId = ME,
+                splits = listOf(ExpenseSplit("u_jordan", 3400)),
+                createdAt = "2026-02-19"
             )
         )
 
@@ -235,6 +254,9 @@ class StubGroupRepository @Inject constructor() : GroupRepository {
         _membersState.update { it - groupId }
         _expensesState.update { it - groupId }
     }
+
+    override fun getAllExpenses(): Flow<List<GroupExpense>> =
+        _expensesState.map { it.values.flatten() }
 
     // --- Derived ---
 

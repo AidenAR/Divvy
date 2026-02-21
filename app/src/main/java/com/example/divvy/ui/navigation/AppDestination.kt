@@ -6,6 +6,7 @@ import kotlinx.serialization.Serializable
 sealed interface AppDestination {
 
     @Serializable data object Home    : AppDestination
+    @Serializable data object Ledger  : AppDestination
     @Serializable data object Profile : AppDestination
 
     @Serializable
