@@ -3,8 +3,11 @@ package com.example.divvy.ui.assignitems.ViewModels
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.divvy.backend.ExpensesRepository
-import com.example.divvy.backend.GroupDetailRepository
+import com.example.divvy.backend.CURRENT_USER_ID
+import com.example.divvy.backend.GroupRepository
+import com.example.divvy.models.ExpenseSplit
+import com.example.divvy.models.GroupExpense
+import com.example.divvy.models.splitEqually
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
@@ -13,9 +16,12 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.LocalDate
+import java.util.UUID
 
 data class AssignMember(
     val id: String,
@@ -29,10 +35,7 @@ data class ReceiptItem(
     val priceCents: Long
 ) {
     val formattedPrice: String
-        get() {
-            val dollars = priceCents / 100.0
-            return "$${String.format("%.2f", dollars)}"
-        }
+        get() = "$${String.format("%.2f", priceCents / 100.0)}"
 }
 
 data class AssignItemsUiState(
@@ -56,36 +59,35 @@ private val MemberColors = listOf(
 )
 
 private val stubItems = listOf(
-    ReceiptItem("i1", "Organic Bananas", 399),
-    ReceiptItem("i2", "Almond Milk", 450),
-    ReceiptItem("i3", "Sourdough Bread", 599),
-    ReceiptItem("i4", "Avocados (4 pack)", 699),
-    ReceiptItem("i5", "Chicken Breast", 1299),
+    ReceiptItem("i1", "Organic Bananas",    399),
+    ReceiptItem("i2", "Almond Milk",        450),
+    ReceiptItem("i3", "Sourdough Bread",    599),
+    ReceiptItem("i4", "Avocados (4 pack)",  699),
+    ReceiptItem("i5", "Chicken Breast",    1299),
 )
 
 @HiltViewModel(assistedFactory = AssignItemsViewModel.Factory::class)
 class AssignItemsViewModel @AssistedInject constructor(
-    @Assisted("groupId") private val groupId: String,
+    @Assisted("groupId")       private val groupId: String,
     @Assisted("amountDisplay") private val amountDisplay: String,
-    @Assisted("description") private val description: String,
-    private val groupDetailRepo: GroupDetailRepository,
-    private val expensesRepo: ExpensesRepository
+    @Assisted("description")   private val description: String,
+    private val groupRepository: GroupRepository
 ) : ViewModel() {
 
     @AssistedFactory
     interface Factory {
         fun create(
-            @Assisted("groupId") groupId: String,
+            @Assisted("groupId")       groupId: String,
             @Assisted("amountDisplay") amountDisplay: String,
-            @Assisted("description") description: String
+            @Assisted("description")   description: String
         ): AssignItemsViewModel
     }
 
     private val _uiState = MutableStateFlow(
         AssignItemsUiState(
-            description = description.ifBlank { "Receipt" },
+            description   = description.ifBlank { "Receipt" },
             amountDisplay = amountDisplay,
-            isLoading = true
+            isLoading     = true
         )
     )
     val uiState: StateFlow<AssignItemsUiState> = _uiState.asStateFlow()
@@ -97,18 +99,12 @@ class AssignItemsViewModel @AssistedInject constructor(
 
     private fun load() {
         viewModelScope.launch {
-            val balances = groupDetailRepo.getMemberBalances(groupId)
-            val members = mutableListOf(
-                AssignMember("me", "You", MemberColors[0])
-            )
-            balances.forEachIndexed { i, mb ->
-                members.add(
-                    AssignMember(mb.userId, mb.name, MemberColors[(i + 1) % MemberColors.size])
-                )
+            val groupMembers = groupRepository.getMembers(groupId).first()
+            val allMembers = mutableListOf(AssignMember(CURRENT_USER_ID, "You", MemberColors[0]))
+            groupMembers.forEachIndexed { i, gm ->
+                allMembers += AssignMember(gm.userId, gm.name, MemberColors[(i + 1) % MemberColors.size])
             }
-            _uiState.update {
-                it.copy(members = members, items = stubItems, isLoading = false)
-            }
+            _uiState.update { it.copy(members = allMembers, items = stubItems, isLoading = false) }
         }
     }
 
@@ -128,23 +124,38 @@ class AssignItemsViewModel @AssistedInject constructor(
 
     fun assignedNamesForItem(itemId: String): String {
         val state = _uiState.value
-        val ids = state.assignments[itemId].orEmpty()
+        val ids   = state.assignments[itemId].orEmpty()
         if (ids.isEmpty()) return "Not assigned"
         return state.members.filter { it.id in ids }.joinToString(", ") { it.name }
     }
 
     fun onNext() {
-        val state = _uiState.value
+        val state       = _uiState.value
         val amountCents = ((state.amountDisplay.toDoubleOrNull() ?: 0.0) * 100).toLong()
 
+        // Compute per-user amounts: split each assigned item equally among its assignees.
+        val perUser = mutableMapOf<String, Long>()
+        for (item in state.items) {
+            val assignees = state.assignments[item.id].orEmpty()
+            if (assignees.isEmpty()) continue
+            for (split in splitEqually(item.priceCents, assignees.toList())) {
+                perUser[split.userId] = (perUser[split.userId] ?: 0L) + split.amountCents
+            }
+        }
+        val splits = state.members.map { m -> ExpenseSplit(m.id, perUser[m.id] ?: 0L) }
+
+        val expense = GroupExpense(
+            id           = UUID.randomUUID().toString(),
+            groupId      = groupId,
+            title        = state.description,
+            amountCents  = amountCents,
+            paidByUserId = CURRENT_USER_ID,
+            splits       = splits,
+            createdAt    = LocalDate.now().toString()
+        )
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true) }
-            expensesRepo.createExpense(
-                groupId = groupId,
-                description = state.description,
-                amountCents = amountCents,
-                splitMethod = "ByItems"
-            )
+            groupRepository.addExpense(expense)
             _uiState.update { it.copy(isSaving = false) }
             _done.send(Unit)
         }
