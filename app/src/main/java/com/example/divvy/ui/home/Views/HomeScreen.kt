@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.rounded.CameraAlt
@@ -67,6 +68,7 @@ fun HomeScreen(
     onScanReceipt: () -> Unit = {},
     onProfileClick: () -> Unit = {},
     onLedgerClick: () -> Unit = {},
+    onAnalyticsClick: () -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -80,6 +82,12 @@ fun HomeScreen(
                     )
                 },
                 actions = {
+                    IconButton(onClick = onAnalyticsClick) {
+                        Icon(
+                            imageVector = Icons.Filled.BarChart,
+                            contentDescription = "Analytics"
+                        )
+                    }
                     IconButton(onClick = onLedgerClick) {
                         Icon(
                             imageVector = Icons.Filled.ReceiptLong,

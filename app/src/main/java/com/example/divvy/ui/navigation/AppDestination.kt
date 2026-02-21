@@ -5,9 +5,10 @@ import kotlinx.serialization.Serializable
 @Serializable
 sealed interface AppDestination {
 
-    @Serializable data object Home    : AppDestination
-    @Serializable data object Ledger  : AppDestination
-    @Serializable data object Profile : AppDestination
+    @Serializable data object Home      : AppDestination
+    @Serializable data object Ledger    : AppDestination
+    @Serializable data object Analytics : AppDestination
+    @Serializable data object Profile   : AppDestination
 
     @Serializable
     data class GroupDetail(val groupId: String) : AppDestination
