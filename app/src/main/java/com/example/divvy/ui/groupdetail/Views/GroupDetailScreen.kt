@@ -1,6 +1,8 @@
 package com.example.divvy.ui.groupdetail.Views
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,11 +19,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.History
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -34,15 +39,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.example.divvy.models.ActivityItem
 import com.example.divvy.models.MemberBalance
 import com.example.divvy.ui.groupdetail.ViewModels.GroupDetailViewModel
+import com.example.divvy.ui.groupdetail.ViewModels.SettleMode
 
 private val Purple = Color(0xFF7C4DFF)
 private val Blue = Color(0xFF448AFF)
@@ -93,12 +100,6 @@ fun GroupDetailScreen(
                     textAlign = TextAlign.Center,
                     modifier = Modifier.weight(1f)
                 )
-//                IconButton(onClick = { /* TODO: history */ }) {
-//                    Icon(
-//                        imageVector = Icons.Filled.History,
-//                        contentDescription = "History"
-//                    )
-//                }
             }
 
             LazyColumn(
@@ -120,9 +121,18 @@ fun GroupDetailScreen(
                     Spacer(modifier = Modifier.height(10.dp))
                 }
                 items(uiState.memberBalances) { mb ->
+                    val isExpanded = uiState.expandedMemberId == mb.userId
                     MemberBalanceCard(
-                        memberBalance = mb,
-                        avatarColor = avatarColors[uiState.memberBalances.indexOf(mb) % avatarColors.size]
+                        memberBalance  = mb,
+                        avatarColor    = avatarColors[uiState.memberBalances.indexOf(mb) % avatarColors.size],
+                        isExpanded     = isExpanded,
+                        settleMode     = uiState.settleMode,
+                        settleAmount   = uiState.settleAmount,
+                        isSettling     = uiState.isSettling,
+                        onCardClick    = { viewModel.onMemberClick(mb.userId) },
+                        onModeSelect   = viewModel::onSettleModeSelected,
+                        onAmountChange = viewModel::onSettleAmountChange,
+                        onConfirm      = { viewModel.onConfirmSettle(mb.userId) }
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                 }
@@ -206,7 +216,18 @@ private fun SectionLabel(text: String) {
 }
 
 @Composable
-private fun MemberBalanceCard(memberBalance: MemberBalance, avatarColor: Color) {
+private fun MemberBalanceCard(
+    memberBalance: MemberBalance,
+    avatarColor: Color,
+    isExpanded: Boolean,
+    settleMode: SettleMode?,
+    settleAmount: String,
+    isSettling: Boolean,
+    onCardClick: () -> Unit,
+    onModeSelect: (SettleMode) -> Unit,
+    onAmountChange: (String) -> Unit,
+    onConfirm: () -> Unit
+) {
     val isOwedByThem = memberBalance.balanceCents >= 0
     val arrowLabel = if (isOwedByThem) "↑ owes you" else "↓ you owe"
     val amountColor = if (isOwedByThem) GreenText else RedText
@@ -214,18 +235,19 @@ private fun MemberBalanceCard(memberBalance: MemberBalance, avatarColor: Color) 
     val amount = "$${String.format("%.2f", dollars)}"
 
     Card(
+        onClick = onCardClick,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
+        // Avatar + name + balance row
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Letter avatar
             Box(
                 modifier = Modifier
                     .size(40.dp)
@@ -258,6 +280,129 @@ private fun MemberBalanceCard(memberBalance: MemberBalance, avatarColor: Color) 
                 color = amountColor
             )
         }
+
+        // Settle panel
+        AnimatedVisibility(visible = isExpanded) {
+            Column(
+                modifier = Modifier
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 14.dp)
+            ) {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp))
+                Text(
+                    "Settle up",
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 13.sp,
+                    color = Color.Gray
+                )
+                Spacer(Modifier.height(10.dp))
+
+                // Mode chips
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SettleChip(
+                        label = "Paid Fully",
+                        selected = settleMode == SettleMode.Fully,
+                        onClick = { onModeSelect(SettleMode.Fully) }
+                    )
+                    SettleChip(
+                        label = "Paid Partially",
+                        selected = settleMode == SettleMode.Partially,
+                        onClick = { onModeSelect(SettleMode.Partially) }
+                    )
+                }
+
+                // Amount input — only for Partially
+                AnimatedVisibility(visible = settleMode == SettleMode.Partially) {
+                    Column {
+                        Spacer(Modifier.height(10.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0xFFF5F5F5))
+                                .padding(horizontal = 14.dp, vertical = 12.dp)
+                        ) {
+                            BasicTextField(
+                                value = settleAmount,
+                                onValueChange = onAmountChange,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                textStyle = TextStyle(
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color.Black
+                                ),
+                                decorationBox = { innerTextField ->
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = "$",
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = Color.Black
+                                        )
+                                        innerTextField()
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                // Confirm button
+                val canConfirm = settleMode != null &&
+                    (settleMode == SettleMode.Fully || settleAmount.toDoubleOrNull()?.let { it > 0 } == true)
+                val buttonBrush = if (canConfirm && !isSettling)
+                    Brush.horizontalGradient(listOf(Purple, Blue))
+                else
+                    Brush.horizontalGradient(listOf(Color.LightGray, Color.LightGray))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .clip(RoundedCornerShape(50.dp))
+                        .background(buttonBrush)
+                        .clickable(enabled = canConfirm && !isSettling) { onConfirm() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isSettling) {
+                        CircularProgressIndicator(
+                            color = Color.White,
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text(
+                            text = "Confirm",
+                            color = Color.White,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 15.sp
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettleChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50.dp))
+            .background(if (selected) Purple else Color.Transparent)
+            .border(1.dp, if (selected) Color.Transparent else Color.LightGray, RoundedCornerShape(50.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            color = if (selected) Color.White else Color.Gray,
+            fontSize = 13.sp,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+        )
     }
 }
 
