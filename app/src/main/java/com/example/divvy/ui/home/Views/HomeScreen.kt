@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -65,6 +66,7 @@ fun HomeScreen(
     onAddExpense: () -> Unit = {},
     onScanReceipt: () -> Unit = {},
     onProfileClick: () -> Unit = {},
+    onLedgerClick: () -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -78,6 +80,12 @@ fun HomeScreen(
                     )
                 },
                 actions = {
+                    IconButton(onClick = onLedgerClick) {
+                        Icon(
+                            imageVector = Icons.Filled.ReceiptLong,
+                            contentDescription = "Ledger"
+                        )
+                    }
                     IconButton(onClick = onProfileClick) {
                         Icon(
                             imageVector = Icons.Filled.Person,

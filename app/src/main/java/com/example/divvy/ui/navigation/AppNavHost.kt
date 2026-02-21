@@ -11,6 +11,7 @@ import com.example.divvy.ui.splitpercentage.ViewModels.SplitByPercentageViewMode
 import com.example.divvy.ui.splitpercentage.Views.SplitByPercentageScreen
 import com.example.divvy.ui.groupdetail.Views.GroupDetailScreen
 import com.example.divvy.ui.home.Views.HomeScreen
+import com.example.divvy.ui.ledger.Views.LedgerScreen
 import com.example.divvy.ui.profile.Views.ProfileScreen
 import com.example.divvy.ui.scanreceipt.Views.ScanReceiptScreen
 import com.example.divvy.ui.splitexpense.Views.SplitExpenseScreen
@@ -28,7 +29,13 @@ fun AppNavHost(
                 onGroupClick = { id -> navController.navigate(AppDestination.GroupDetail(id)) },
                 onAddExpense = { navController.navigate(AppDestination.SplitExpense()) },
                 onScanReceipt = { navController.navigate(AppDestination.ScanReceipt) },
-                onProfileClick = { navController.navigate(AppDestination.Profile) }
+                onProfileClick = { navController.navigate(AppDestination.Profile) },
+                onLedgerClick = { navController.navigate(AppDestination.Ledger) }
+            )
+        }
+        composable<AppDestination.Ledger> {
+            LedgerScreen(
+                onBack = { navController.popBackStack() }
             )
         }
         composable<AppDestination.Profile> {
