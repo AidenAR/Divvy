@@ -44,7 +44,13 @@ fun AppNavHost(
             val dest: AppDestination.GroupDetail = backStack.toRoute()
             GroupDetailScreen(
                 groupId = dest.groupId,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onLeaveGroup = {
+                    navController.popBackStack(
+                        route = AppDestination.BottomNav.Home,
+                        inclusive = false
+                    )
+                }
             )
         }
         composable<AppDestination.ScanReceipt> {
