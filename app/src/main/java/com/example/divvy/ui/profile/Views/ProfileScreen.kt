@@ -207,7 +207,7 @@ fun ProfileScreen(
 
             OutlineButton(
                 label = if (uiState.isLoading) "Signing out..." else "Log out",
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
                 enabled = !uiState.isLoading
             ) {
                 viewModel.signOut {

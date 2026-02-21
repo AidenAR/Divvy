@@ -95,7 +95,7 @@ fun AssignItemsScreen(
                             .padding(horizontal = 20.dp, vertical = 8.dp)
                     ) {
                         Text(
-                            text = if (uiState.isSaving) "..." else "Next",
+                            text = if (uiState.isSaving) "..." else "Done",
                             color = Color.White,
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 14.sp

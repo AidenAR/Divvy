@@ -417,15 +417,6 @@ private fun MemberBalanceCard(
                     .padding(horizontal = 16.dp)
                     .padding(bottom = 14.dp)
             ) {
-                HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp))
-                Text(
-                    "Settle up",
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 13.sp,
-                    color = Color.Gray
-                )
-                Spacer(Modifier.height(10.dp))
-
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     SettleChip(
                         label = "Paid Fully",
