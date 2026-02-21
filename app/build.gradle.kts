@@ -91,6 +91,11 @@ dependencies {
     implementation(libs.supabase.gotrue.kt)
     implementation(libs.ktor.client.android)
 
+    implementation(libs.androidx.camera.core)
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.view)
+
     implementation(libs.hilt.android)
     ksp(libs.hilt.android.compiler)
     ksp(libs.kotlin.metadata.jvm)
