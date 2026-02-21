@@ -1,5 +1,6 @@
 package com.example.divvy.ui.splitexpense.ViewModels
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.divvy.backend.ExpensesRepository
@@ -33,11 +34,21 @@ data class SplitExpenseUiState(
 
 @HiltViewModel
 class SplitExpenseViewModel @Inject constructor(
+    savedStateHandle: SavedStateHandle,
     private val groupsRepository: GroupsRepository,
     private val expensesRepository: ExpensesRepository
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(SplitExpenseUiState(isLoading = true))
+    private val scannedAmount: String = savedStateHandle["scannedAmount"] ?: ""
+    private val scannedDescription: String = savedStateHandle["scannedDescription"] ?: ""
+
+    private val _uiState = MutableStateFlow(
+        SplitExpenseUiState(
+            isLoading = true,
+            amount = scannedAmount,
+            description = scannedDescription
+        )
+    )
     val uiState: StateFlow<SplitExpenseUiState> = _uiState.asStateFlow()
 
     sealed interface SplitEvent {

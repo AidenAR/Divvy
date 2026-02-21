@@ -14,6 +14,7 @@ import com.example.divvy.ui.groups.Views.GroupsScreen
 import com.example.divvy.ui.home.Views.HomeScreen
 import com.example.divvy.ui.ledger.Views.LedgerScreen
 import com.example.divvy.ui.profile.Views.ProfileScreen
+import com.example.divvy.ui.scanreceipt.Views.ScanReceiptScreen
 import com.example.divvy.ui.splitexpense.Views.SplitExpenseScreen
 
 @Composable
@@ -29,7 +30,8 @@ fun AppNavHost(
         composable<AppDestination.BottomNav.Home>     {
             HomeScreen(
                 onGroupClick = { id -> navController.navigate(AppDestination.GroupDetail(id)) },
-                onAddExpense = { navController.navigate(AppDestination.SplitExpense) }
+                onAddExpense = { navController.navigate(AppDestination.SplitExpense()) },
+                onScanReceipt = { navController.navigate(AppDestination.ScanReceipt) }
             )
         }
         composable<AppDestination.BottomNav.Groups>   { GroupsScreen() }
@@ -41,6 +43,20 @@ fun AppNavHost(
             GroupDetailScreen(
                 groupId = dest.groupId,
                 onBack = { navController.popBackStack() }
+            )
+        }
+        composable<AppDestination.ScanReceipt> {
+            ScanReceiptScreen(
+                onBack = { navController.popBackStack() },
+                onScanComplete = { amount, description ->
+                    navController.popBackStack()
+                    navController.navigate(
+                        AppDestination.SplitExpense(
+                            scannedAmount = amount,
+                            scannedDescription = description
+                        )
+                    )
+                }
             )
         }
         composable<AppDestination.SplitExpense> {

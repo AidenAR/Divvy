@@ -25,7 +25,13 @@ sealed interface AppDestination {
     data class GroupDetail(val groupId: String) : AppDestination
 
     @Serializable
-    data object SplitExpense : AppDestination
+    data object ScanReceipt : AppDestination
+
+    @Serializable
+    data class SplitExpense(
+        val scannedAmount: String = "",
+        val scannedDescription: String = ""
+    ) : AppDestination
 
     @Serializable
     data class AssignItems(

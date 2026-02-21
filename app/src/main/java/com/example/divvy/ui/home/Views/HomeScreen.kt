@@ -57,6 +57,7 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
     onGroupClick: (String) -> Unit,
     onAddExpense: () -> Unit = {},
+    onScanReceipt: () -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -135,7 +136,7 @@ fun HomeScreen(
         }
 
         BottomActionBar(
-            onScanReceipt = { /* TODO */ },
+            onScanReceipt = onScanReceipt,
             onAddExpense = onAddExpense
         )
     }
