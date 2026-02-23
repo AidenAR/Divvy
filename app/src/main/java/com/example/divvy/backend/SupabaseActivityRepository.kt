@@ -27,7 +27,7 @@ class SupabaseActivityRepository @Inject constructor(
                 .decodeList<ActivityFeedItem>()
             _activityFeed.emit(DataResult.Success(items))
         } catch (e: Exception) {
-            _activityFeed.emit(DataResult.Error("Failed to load activity feed", e))  // changed
+            _activityFeed.emit(DataResult.Error("Failed to load activity feed", e))
         }
     }
 }
