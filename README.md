@@ -1,9 +1,6 @@
-# Divvy
-*CS446 - Software Design and Architecture Project (W26)*
+<img width="863" height="487" alt="image" src="https://github.com/user-attachments/assets/3c15459a-7f7a-42ea-a681-6e3e273b0769" />
 
-## `v0` mockup
-
-<img src="https://github.com/user-attachments/assets/bd59d33c-93bc-4947-8d28-04c3b3d69a83" height="20%" width="15%"/>
+## Overview
 
 **Project Description:** Divvy is a mobile app that simplifies group expense splitting by bringing it to the moment of payment. Rather than relying on users to manually log expenses afterward, Divvy integrates with bank transactions to quickly create a Splitwise-style interface whenever a purchase is likely to be shared.
 
