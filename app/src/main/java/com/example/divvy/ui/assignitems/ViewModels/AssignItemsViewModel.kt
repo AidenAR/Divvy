@@ -3,15 +3,18 @@ package com.example.divvy.ui.assignitems.ViewModels
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.divvy.backend.CURRENT_USER_ID
+import com.example.divvy.FeatureFlags
+import com.example.divvy.backend.ExpensesRepository
 import com.example.divvy.backend.GroupRepository
+import com.example.divvy.backend.SupabaseClientProvider
 import com.example.divvy.models.ExpenseSplit
-import com.example.divvy.models.GroupExpense
 import com.example.divvy.models.splitEqually
+import com.example.divvy.ui.auth.DummyAccount
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
+import io.github.jan.supabase.gotrue.auth
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,8 +23,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.time.LocalDate
-import java.util.UUID
 
 data class AssignMember(
     val id: String,
@@ -71,7 +72,8 @@ class AssignItemsViewModel @AssistedInject constructor(
     @Assisted("groupId")       private val groupId: String,
     @Assisted("amountDisplay") private val amountDisplay: String,
     @Assisted("description")   private val description: String,
-    private val groupRepository: GroupRepository
+    private val groupRepository: GroupRepository,
+    private val expensesRepository: ExpensesRepository
 ) : ViewModel() {
 
     @AssistedFactory
@@ -82,6 +84,14 @@ class AssignItemsViewModel @AssistedInject constructor(
             @Assisted("description")   description: String
         ): AssignItemsViewModel
     }
+
+    private val currentUserId: String
+        get() = if (FeatureFlags.AUTH_BYPASS) {
+            DummyAccount.USER_ID
+        } else {
+            SupabaseClientProvider.client.auth.currentUserOrNull()?.id
+                ?: error("No authenticated user")
+        }
 
     private val _uiState = MutableStateFlow(
         AssignItemsUiState(
@@ -100,7 +110,7 @@ class AssignItemsViewModel @AssistedInject constructor(
     private fun load() {
         viewModelScope.launch {
             val groupMembers = groupRepository.getMembers(groupId).first()
-            val allMembers = mutableListOf(AssignMember(CURRENT_USER_ID, "You", MemberColors[0]))
+            val allMembers = mutableListOf(AssignMember(currentUserId, "You", MemberColors[0]))
             groupMembers.forEachIndexed { i, gm ->
                 allMembers += AssignMember(gm.userId, gm.name, MemberColors[(i + 1) % MemberColors.size])
             }
@@ -144,18 +154,16 @@ class AssignItemsViewModel @AssistedInject constructor(
         }
         val splits = state.members.map { m -> ExpenseSplit(m.id, perUser[m.id] ?: 0L) }
 
-        val expense = GroupExpense(
-            id           = UUID.randomUUID().toString(),
-            groupId      = groupId,
-            title        = state.description,
-            amountCents  = amountCents,
-            paidByUserId = CURRENT_USER_ID,
-            splits       = splits,
-            createdAt    = LocalDate.now().toString()
-        )
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true) }
-            groupRepository.addExpense(expense)
+            expensesRepository.createExpenseWithSplits(
+                groupId     = groupId,
+                description = state.description,
+                amountCents = amountCents,
+                currency    = "USD",
+                splitMethod = "BY_ITEM",
+                splits      = splits
+            )
             _uiState.update { it.copy(isSaving = false) }
             _done.send(Unit)
         }

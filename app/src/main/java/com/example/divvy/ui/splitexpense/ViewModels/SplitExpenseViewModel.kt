@@ -3,12 +3,15 @@ package com.example.divvy.ui.splitexpense.ViewModels
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.divvy.backend.CURRENT_USER_ID
+import com.example.divvy.FeatureFlags
+import com.example.divvy.backend.ExpensesRepository
 import com.example.divvy.backend.GroupRepository
+import com.example.divvy.backend.SupabaseClientProvider
 import com.example.divvy.models.Group
-import com.example.divvy.models.GroupExpense
 import com.example.divvy.models.splitEqually
+import com.example.divvy.ui.auth.DummyAccount
 import dagger.hilt.android.lifecycle.HiltViewModel
+import io.github.jan.supabase.gotrue.auth
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,8 +20,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.time.LocalDate
-import java.util.UUID
 import javax.inject.Inject
 
 enum class SplitMethod(val title: String, val subtitle: String) {
@@ -40,17 +41,18 @@ data class SplitExpenseUiState(
 @HiltViewModel
 class SplitExpenseViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val groupRepository: GroupRepository
+    private val groupRepository: GroupRepository,
+    private val expensesRepository: ExpensesRepository
 ) : ViewModel() {
 
-    private val scannedAmount: String       = savedStateHandle["scannedAmount"]       ?: ""
-    private val scannedDescription: String  = savedStateHandle["scannedDescription"]  ?: ""
-    private val preselectedGroupId: String  = savedStateHandle["preselectedGroupId"]  ?: ""
+    private val scannedAmount: String      = savedStateHandle["scannedAmount"]      ?: ""
+    private val scannedDescription: String = savedStateHandle["scannedDescription"] ?: ""
+    private val preselectedGroupId: String = savedStateHandle["preselectedGroupId"] ?: ""
 
     private val _uiState = MutableStateFlow(
         SplitExpenseUiState(
-            isLoading = true,
-            amount = scannedAmount,
+            isLoading   = true,
+            amount      = scannedAmount,
             description = scannedDescription
         )
     )
@@ -64,6 +66,14 @@ class SplitExpenseViewModel @Inject constructor(
 
     private val _events = Channel<SplitEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
+
+    private val currentUserId: String
+        get() = if (FeatureFlags.AUTH_BYPASS) {
+            DummyAccount.USER_ID
+        } else {
+            SupabaseClientProvider.client.auth.currentUserOrNull()?.id
+                ?: error("No authenticated user")
+        }
 
     init {
         viewModelScope.launch {
@@ -122,18 +132,15 @@ class SplitExpenseViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isCreating = true) }
             val members    = groupRepository.getMembers(groupId).first()
-            val allUserIds = listOf(CURRENT_USER_ID) + members.map { it.userId }
+            val allUserIds = listOf(currentUserId) + members.map { it.userId }
             val splits     = splitEqually(amountCents, allUserIds)
-            groupRepository.addExpense(
-                GroupExpense(
-                    id           = UUID.randomUUID().toString(),
-                    groupId      = groupId,
-                    title        = desc,
-                    amountCents  = amountCents,
-                    paidByUserId = CURRENT_USER_ID,
-                    splits       = splits,
-                    createdAt    = LocalDate.now().toString()
-                )
+            expensesRepository.createExpenseWithSplits(
+                groupId     = groupId,
+                description = desc,
+                amountCents = amountCents,
+                currency    = "USD",
+                splitMethod = "EQUAL",
+                splits      = splits
             )
             _uiState.update { it.copy(isCreating = false) }
             _events.send(SplitEvent.Created)
