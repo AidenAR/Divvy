@@ -11,7 +11,8 @@ data class Group(
     val icon: GroupIcon = GroupIcon.Group,
     val memberCount: Int = 0,
     val balanceCents: Long = 0L,
-    val currency: String = "USD"
+    val currency: String = "USD",
+    val createdBy: String = ""
 ) {
     /** Positive = you are owed, negative = you owe */
     val isOwed: Boolean get() = balanceCents >= 0

@@ -8,7 +8,7 @@ import com.example.divvy.models.ProfileRow
  * Provides a consistent fake account so the app can run without Supabase auth.
  */
 object DummyAccount {
-    const val USER_ID = "dummy-user-divvy"
+    const val USER_ID = "254e584d-13be-4a90-882d-19b403849921"
 
     val profile: ProfileRow = ProfileRow(
         id = USER_ID,

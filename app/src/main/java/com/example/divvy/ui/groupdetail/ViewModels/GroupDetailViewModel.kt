@@ -2,13 +2,20 @@ package com.example.divvy.ui.groupdetail.ViewModels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.divvy.backend.CURRENT_USER_ID
+import com.example.divvy.backend.ActivityRepository
+import com.example.divvy.backend.AuthRepository
+import com.example.divvy.backend.BalanceRepository
+import com.example.divvy.backend.ExpensesRepository
 import com.example.divvy.backend.GroupRepository
+import com.example.divvy.backend.MemberRepository
+import com.example.divvy.backend.ProfilesRepository
+import com.example.divvy.components.GroupIcon
 import com.example.divvy.models.ActivityItem
-import com.example.divvy.models.ExpenseSplit
 import com.example.divvy.models.Group
 import com.example.divvy.models.GroupExpense
+import com.example.divvy.models.GroupMember
 import com.example.divvy.models.MemberBalance
+import com.example.divvy.models.ProfileRow
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
@@ -20,7 +27,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
-import java.util.UUID
+import java.time.format.TextStyle
+import java.util.Locale
 
 enum class SettleMode { Fully, Partially }
 
@@ -29,18 +37,41 @@ data class GroupDetailUiState(
     val memberBalances: List<MemberBalance> = emptyList(),
     val activity: List<ActivityItem> = emptyList(),
     val isLoading: Boolean = true,
-    val expandedMemberId: String? = null,
-    val settleMode: SettleMode? = null,
-    val settleAmount: String = "",
-    val isSettling: Boolean = false,
-    val showManagePanel: Boolean = false,
-    val leftGroup: Boolean = false
-)
+    val showManageSheet: Boolean = false,
+    val leftGroup: Boolean = false,
+    val deletedGroup: Boolean = false,
+    val isCreator: Boolean = false,
+    val currentMemberIds: Set<String> = emptySet(),
+    // Delegate states
+    val settlement: SettlementState = SettlementState(),
+    val editGroup: EditGroupState = EditGroupState(),
+    val inviteMembers: InviteMembersState = InviteMembersState()
+) {
+    // Convenience accessors so the UI doesn't need to know about delegates
+    val expandedMemberId get() = settlement.expandedMemberId
+    val settleMode get() = settlement.settleMode
+    val settleAmount get() = settlement.settleAmount
+    val isSettling get() = settlement.isSettling
+    val isEditing get() = editGroup.isEditing
+    val editName get() = editGroup.editName
+    val editIcon get() = editGroup.editIcon
+    val isSavingEdit get() = editGroup.isSaving
+    val showInviteSheet get() = inviteMembers.showSheet
+    val allProfiles get() = inviteMembers.allProfiles
+    val inviteSearchQuery get() = inviteMembers.searchQuery
+    val isAddingMember get() = inviteMembers.isAdding
+}
 
 @HiltViewModel(assistedFactory = GroupDetailViewModel.Factory::class)
 class GroupDetailViewModel @AssistedInject constructor(
     @Assisted private val groupId: String,
-    private val repo: GroupRepository
+    private val authRepository: AuthRepository,
+    private val groupRepository: GroupRepository,
+    private val memberRepository: MemberRepository,
+    private val balanceRepository: BalanceRepository,
+    private val expensesRepository: ExpensesRepository,
+    private val profilesRepository: ProfilesRepository,
+    private val activityRepository: ActivityRepository
 ) : ViewModel() {
 
     @AssistedFactory
@@ -51,96 +82,180 @@ class GroupDetailViewModel @AssistedInject constructor(
     private val _uiState = MutableStateFlow(GroupDetailUiState())
     val uiState: StateFlow<GroupDetailUiState> = _uiState.asStateFlow()
 
+    private val myUserId: String = authRepository.getCurrentUserId()
+
+    val settlementDelegate = SettlementDelegate(
+        groupId = groupId,
+        myUserId = myUserId,
+        scope = viewModelScope,
+        expensesRepository = expensesRepository,
+        balanceRepository = balanceRepository,
+        groupRepository = groupRepository,
+        getMemberBalances = { _uiState.value.memberBalances }
+    )
+
+    val editDelegate = EditGroupDelegate(
+        groupId = groupId,
+        scope = viewModelScope,
+        groupRepository = groupRepository
+    )
+
+    val inviteDelegate = InviteMembersDelegate(
+        groupId = groupId,
+        scope = viewModelScope,
+        memberRepository = memberRepository,
+        profilesRepository = profilesRepository,
+        onMemberAdded = { profileId ->
+            _uiState.update { it.copy(currentMemberIds = it.currentMemberIds + profileId) }
+            viewModelScope.launch {
+                groupRepository.refreshGroups()
+                activityRepository.refreshActivityFeed()
+            }
+        }
+    )
+
     init {
         viewModelScope.launch {
+            memberRepository.refreshMembers(groupId)
+            balanceRepository.refreshBalances(groupId)
+            expensesRepository.refreshGroupExpenses(groupId)
+        }
+
+        viewModelScope.launch {
             combine(
-                repo.getGroup(groupId),
-                repo.getMemberBalances(groupId),
-                repo.getActivity(groupId)
-            ) { group, balances, activity ->
-                val sortedActivity = activity.sortedByDescending { it.timestamp }
-                Triple(group, balances, sortedActivity)
-            }.collect { (group, balances, activity) ->
+                groupRepository.getGroup(groupId),
+                memberRepository.getMembers(groupId),
+                balanceRepository.observeBalances(groupId),
+                expensesRepository.observeGroupExpenses(groupId)
+            ) { group, members, rawBalances, expenses ->
+                val balanceMap = rawBalances.associateBy { it.userId }
+                val memberBalances = members.map { member ->
+                    MemberBalance(
+                        userId = member.userId,
+                        name = member.name,
+                        balanceCents = balanceMap[member.userId]?.balanceCents ?: 0L
+                    )
+                }
+                val activity = buildActivity(expenses, members)
+                val memberIds = members.map { it.userId }.toSet() + myUserId
+                GroupDetailData(group, memberBalances, activity, memberIds)
+            }.collect { data ->
                 _uiState.update { current ->
                     current.copy(
-                        group = group,
-                        memberBalances = balances,
-                        activity = activity,
-                        isLoading = false
+                        group = data.group,
+                        memberBalances = data.memberBalances,
+                        activity = data.activity,
+                        isLoading = false,
+                        isCreator = data.group.createdBy == myUserId,
+                        currentMemberIds = data.memberIds
                     )
                 }
             }
         }
-    }
 
-    fun onMemberClick(userId: String) {
-        _uiState.update { state ->
-            if (state.expandedMemberId == userId)
-                state.copy(expandedMemberId = null, settleMode = null, settleAmount = "")
-            else
-                state.copy(expandedMemberId = userId, settleMode = null, settleAmount = "")
+        viewModelScope.launch {
+            settlementDelegate.state.collect { s ->
+                _uiState.update { it.copy(settlement = s) }
+            }
+        }
+        viewModelScope.launch {
+            editDelegate.state.collect { s ->
+                _uiState.update { it.copy(editGroup = s) }
+            }
+        }
+        viewModelScope.launch {
+            inviteDelegate.state.collect { s ->
+                _uiState.update { it.copy(inviteMembers = s) }
+            }
         }
     }
 
-    fun onSettleModeSelected(mode: SettleMode) {
-        _uiState.update { state ->
-            val amount = if (mode == SettleMode.Fully) {
-                val balance = state.memberBalances
-                    .find { it.userId == state.expandedMemberId }?.balanceCents ?: 0L
-                String.format("%.2f", kotlin.math.abs(balance) / 100.0)
-            } else ""
-            state.copy(settleMode = mode, settleAmount = amount)
-        }
+    // --- Settlement (forwarded to delegate) ---
+    fun onMemberClick(userId: String) = settlementDelegate.onMemberClick(userId)
+    fun onSettleModeSelected(mode: SettleMode) = settlementDelegate.onSettleModeSelected(mode)
+    fun onSettleAmountChange(value: String) = settlementDelegate.onSettleAmountChange(value)
+    fun onConfirmSettle(userId: String) = settlementDelegate.onConfirmSettle(userId)
+
+    // --- Manage actions ---
+    fun onShowManageSheet() {
+        _uiState.update { it.copy(showManageSheet = true) }
     }
 
-    fun onSettleAmountChange(value: String) {
-        val filtered = value.filter { it.isDigit() || it == '.' }
-        if (filtered.count { it == '.' } > 1) return
-        val dot = filtered.indexOf('.')
-        if (dot != -1 && filtered.length - dot - 1 > 2) return
-        _uiState.update { it.copy(settleAmount = filtered) }
-    }
-
-    fun onGearClick() {
-        _uiState.update { it.copy(showManagePanel = !it.showManagePanel) }
+    fun onDismissManageSheet() {
+        _uiState.update { it.copy(showManageSheet = false) }
     }
 
     fun onLeaveGroup() {
         viewModelScope.launch {
-            repo.leaveGroup(groupId)
+            memberRepository.leaveGroup(groupId)
+            groupRepository.refreshGroups()
+            activityRepository.refreshActivityFeed()
             _uiState.update { it.copy(leftGroup = true) }
         }
     }
 
-    fun onConfirmSettle(userId: String) {
-        val state = _uiState.value
-        val amountCents = (state.settleAmount.toDoubleOrNull() ?: return).let {
-            (it * 100).toLong()
-        }
-        if (amountCents <= 0) return
-        val balance = state.memberBalances.find { it.userId == userId }?.balanceCents ?: return
-
-        val (paidBy, splitUserId) = if (balance < 0)
-            Pair(CURRENT_USER_ID, userId)
-        else
-            Pair(userId, CURRENT_USER_ID)
-
-        val expense = GroupExpense(
-            id           = UUID.randomUUID().toString(),
-            groupId      = groupId,
-            title        = "Settlement",
-            amountCents  = amountCents,
-            paidByUserId = paidBy,
-            splits       = listOf(ExpenseSplit(splitUserId, amountCents)),
-            createdAt    = LocalDate.now().toString()
-        )
+    fun onDeleteGroup() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isSettling = true) }
-            repo.addExpense(expense)
-            _uiState.update {
-                it.copy(isSettling = false, expandedMemberId = null,
-                        settleMode = null, settleAmount = "")
-            }
+            groupRepository.deleteGroup(groupId)
+            groupRepository.refreshGroups()
+            activityRepository.refreshActivityFeed()
+            _uiState.update { it.copy(deletedGroup = true) }
         }
     }
+
+    // --- Edit group (forwarded to delegate) ---
+    fun onStartEdit() = editDelegate.onStartEdit(_uiState.value.group)
+    fun onCancelEdit() = editDelegate.onCancelEdit()
+    fun onEditNameChange(value: String) = editDelegate.onEditNameChange(value)
+    fun onEditIconSelected(icon: GroupIcon) = editDelegate.onEditIconSelected(icon)
+    fun onSaveEdit() = editDelegate.onSaveEdit()
+
+    // --- Invite members (forwarded to delegate) ---
+    fun onShowInviteSheet() = inviteDelegate.onShowSheet()
+    fun onDismissInviteSheet() = inviteDelegate.onDismissSheet()
+    fun onInviteSearchChange(value: String) = inviteDelegate.onSearchChange(value)
+    fun onInviteMember(profile: ProfileRow) = inviteDelegate.onInviteMember(profile)
+
+    // --- Helpers ---
+
+    private fun buildActivity(
+        expenses: List<GroupExpense>,
+        members: List<GroupMember>
+    ): List<ActivityItem> {
+        val memberMap = members.associateBy { it.userId }
+        return expenses
+            .sortedByDescending { it.createdAt }
+            .map { expense ->
+                val paidByCurrentUser = expense.paidByUserId == myUserId
+                ActivityItem(
+                    id = expense.id,
+                    title = expense.title,
+                    amountCents = expense.amountCents,
+                    dateLabel = dateLabel(expense.createdAt),
+                    paidByLabel = if (paidByCurrentUser) "You"
+                    else memberMap[expense.paidByUserId]?.name ?: "Unknown",
+                    paidByCurrentUser = paidByCurrentUser,
+                    timestamp = expense.createdAt
+                )
+            }
+    }
+
+    private fun dateLabel(isoDate: String): String {
+        return try {
+            val date = LocalDate.parse(isoDate.take(10))
+            val today = LocalDate.now()
+            when (date) {
+                today -> "Today"
+                today.minusDays(1) -> "Yesterday"
+                else -> date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.ENGLISH)
+            }
+        } catch (_: Exception) { isoDate }
+    }
 }
+
+private data class GroupDetailData(
+    val group: Group,
+    val memberBalances: List<MemberBalance>,
+    val activity: List<ActivityItem>,
+    val memberIds: Set<String>
+)

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -17,6 +18,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,10 +28,13 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -36,9 +43,13 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -46,7 +57,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
@@ -56,27 +66,18 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.example.divvy.components.GroupIcon
 import com.example.divvy.models.ActivityItem
 import com.example.divvy.models.MemberBalance
 import com.example.divvy.ui.groupdetail.ViewModels.GroupDetailViewModel
 import com.example.divvy.ui.groupdetail.ViewModels.SettleMode
-
-private val Purple = Color(0xFF7C4DFF)
-private val Blue = Color(0xFF448AFF)
-private val GreenBg = Color(0xFF2E7D32)
-private val RedBg = Color(0xFFC62828)
-private val GreenText = Color(0xFF2E7D32)
-private val RedText = Color(0xFFC62828)
-private val GreenBadgeBg = Color(0xFFE8F5E9)
-private val RedBadgeBg = Color(0xFFFCE4EC)
-
-private val avatarColors = listOf(
-    Color(0xFF7C4DFF),
-    Color(0xFF2E7D32),
-    Color(0xFFE65100),
-    Color(0xFF1565C0),
-    Color(0xFF00695C),
-)
+import com.example.divvy.ui.theme.AvatarColors
+import com.example.divvy.ui.theme.DmSansFamily
+import com.example.divvy.ui.theme.NegativeRed
+import com.example.divvy.ui.theme.NegativeRedLight
+import com.example.divvy.ui.theme.PositiveGreen
+import com.example.divvy.ui.theme.PositiveGreenLight
+import com.example.divvy.components.GroupIcon as GroupIconComposable
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -90,10 +91,14 @@ fun GroupDetailScreen(
         creationCallback = { factory -> factory.create(groupId) }
     )
     val uiState by viewModel.uiState.collectAsState()
+    @Suppress("DEPRECATION")
     val clipboardManager = LocalClipboardManager.current
 
     LaunchedEffect(uiState.leftGroup) {
         if (uiState.leftGroup) onLeaveGroup()
+    }
+    LaunchedEffect(uiState.deletedGroup) {
+        if (uiState.deletedGroup) onLeaveGroup()
     }
 
     Scaffold(
@@ -102,7 +107,7 @@ fun GroupDetailScreen(
                 title = {
                     Text(
                         text = uiState.group.name,
-                        fontWeight = FontWeight.SemiBold
+                        style = MaterialTheme.typography.titleLarge,
                     )
                 },
                 navigationIcon = {
@@ -114,20 +119,24 @@ fun GroupDetailScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { viewModel.onGearClick() }) {
+                    IconButton(onClick = { viewModel.onShowManageSheet() }) {
                         Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "Manage Group"
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = "Manage Group",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                )
             )
-        }
+        },
+        containerColor = MaterialTheme.colorScheme.background,
     ) { innerPadding ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.White)
                 .padding(innerPadding)
         ) {
             LazyColumn(
@@ -137,19 +146,20 @@ fun GroupDetailScreen(
                 contentPadding = PaddingValues(bottom = 96.dp)
             ) {
                 item {
-                    AnimatedVisibility(visible = uiState.showManagePanel) {
-                        Column {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            ManageGroupCard(
-                                groupId = groupId,
-                                onLeaveGroup = { viewModel.onLeaveGroup() },
-                                onCopyLink = { url ->
-                                    clipboardManager.setText(AnnotatedString(url))
-                                }
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                        }
-                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    ManageGroupCard(
+                        isEditing = uiState.isEditing,
+                        editName = uiState.editName,
+                        editIcon = uiState.editIcon,
+                        isSavingEdit = uiState.isSavingEdit,
+                        onStartEdit = viewModel::onStartEdit,
+                        onCancelEdit = viewModel::onCancelEdit,
+                        onEditNameChange = viewModel::onEditNameChange,
+                        onEditIconSelected = viewModel::onEditIconSelected,
+                        onSaveEdit = viewModel::onSaveEdit,
+                        onInviteMembers = viewModel::onShowInviteSheet
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
 
                 item {
@@ -166,7 +176,7 @@ fun GroupDetailScreen(
                     val isExpanded = uiState.expandedMemberId == mb.userId
                     MemberBalanceCard(
                         memberBalance  = mb,
-                        avatarColor    = avatarColors[uiState.memberBalances.indexOf(mb) % avatarColors.size],
+                        avatarColor    = AvatarColors[uiState.memberBalances.indexOf(mb) % AvatarColors.size],
                         isExpanded     = isExpanded,
                         settleMode     = uiState.settleMode,
                         settleAmount   = uiState.settleAmount,
@@ -195,109 +205,340 @@ fun GroupDetailScreen(
                     .align(Alignment.BottomCenter)
                     .padding(16.dp)
                     .fillMaxWidth()
-                    .height(54.dp)
-                    .clip(RoundedCornerShape(50.dp))
-                    .background(Brush.horizontalGradient(listOf(Purple, Blue)))
+                    .height(52.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(MaterialTheme.colorScheme.primary)
                     .clickable { onAddExpense() },
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = "Add New Expense",
                     color = Color.White,
+                    style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
-                    fontSize = 16.sp
                 )
             }
         }
     }
+
+    if (uiState.showInviteSheet) {
+        InviteMembersSheet(
+            profiles = uiState.allProfiles,
+            currentMemberIds = uiState.currentMemberIds,
+            searchQuery = uiState.inviteSearchQuery,
+            isAdding = uiState.isAddingMember,
+            onSearchChange = viewModel::onInviteSearchChange,
+            onInvite = viewModel::onInviteMember,
+            onDismiss = viewModel::onDismissInviteSheet
+        )
+    }
+
+    if (uiState.showManageSheet) {
+        ManageActionsSheet(
+            groupId = groupId,
+            isCreator = uiState.isCreator,
+            onCopyLink = { url ->
+                clipboardManager.setText(AnnotatedString(url))
+                viewModel.onDismissManageSheet()
+            },
+            onLeaveGroup = viewModel::onLeaveGroup,
+            onDeleteGroup = viewModel::onDeleteGroup,
+            onDismiss = viewModel::onDismissManageSheet
+        )
+    }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ManageGroupCard(
+    isEditing: Boolean,
+    editName: String,
+    editIcon: GroupIcon,
+    isSavingEdit: Boolean,
+    onStartEdit: () -> Unit,
+    onCancelEdit: () -> Unit,
+    onEditNameChange: (String) -> Unit,
+    onEditIconSelected: (GroupIcon) -> Unit,
+    onSaveEdit: () -> Unit,
+    onInviteMembers: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(14.dp))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = if (isEditing) onCancelEdit else onStartEdit)
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = if (isEditing) Icons.Default.Close else Icons.Default.Edit,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = if (isEditing) "Cancel Edit" else "Edit Group",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+        }
+
+        AnimatedVisibility(visible = isEditing) {
+            Column(modifier = Modifier
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 14.dp)) {
+                TextField(
+                    value = editName,
+                    onValueChange = onEditNameChange,
+                    placeholder = { Text("Group name", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        disabledIndicatorColor = Color.Transparent
+                    )
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "Icon",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(6),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp)
+                ) {
+                    items(GroupIcon.entries) { icon ->
+                        val isSelected = icon == editIcon
+                        Box(
+                            modifier = Modifier
+                                .aspectRatio(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(
+                                    if (isSelected) MaterialTheme.colorScheme.primaryContainer
+                                    else MaterialTheme.colorScheme.surfaceVariant
+                                )
+                                .then(
+                                    if (isSelected) Modifier.border(
+                                        2.dp,
+                                        MaterialTheme.colorScheme.primary,
+                                        RoundedCornerShape(10.dp)
+                                    )
+                                    else Modifier
+                                )
+                                .clickable { onEditIconSelected(icon) },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            GroupIconComposable(
+                                icon = icon,
+                                tint = if (isSelected) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(
+                            if (editName.isNotBlank() && !isSavingEdit)
+                                MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.outline
+                        )
+                        .clickable(enabled = editName.isNotBlank() && !isSavingEdit) { onSaveEdit() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isSavingEdit) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text("Save Changes", color = Color.White, style = MaterialTheme.typography.titleSmall)
+                    }
+                }
+            }
+        }
+
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onInviteMembers)
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.PersonAdd,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = "Invite Members",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ManageActionsSheet(
     groupId: String,
+    isCreator: Boolean,
+    onCopyLink: (String) -> Unit,
     onLeaveGroup: () -> Unit,
-    onCopyLink: (String) -> Unit
+    onDeleteGroup: () -> Unit,
+    onDismiss: () -> Unit
 ) {
     val inviteUrl = "divvy.app/join/$groupId"
+    val sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface
     ) {
-        Column {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 32.dp)
+        ) {
+            Text(
+                text = "Group actions",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFFEDE7F6)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Link,
-                        contentDescription = null,
-                        tint = Purple,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.width(12.dp))
+                Icon(
+                    imageVector = Icons.Default.Link,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(10.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Invite Link",
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 15.sp,
-                        color = Color.Black
+                        text = "Invite link",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
                         text = inviteUrl,
-                        fontSize = 12.sp,
-                        color = Color.Gray
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onBackground
                     )
                 }
                 IconButton(onClick = { onCopyLink(inviteUrl) }) {
                     Icon(
                         imageVector = Icons.Default.ContentCopy,
                         contentDescription = "Copy link",
-                        tint = Color.Gray,
-                        modifier = Modifier.size(20.dp)
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
 
-            HorizontalDivider(
-                modifier = Modifier.padding(horizontal = 16.dp),
-                color = Color(0xFFF0F0F0)
-            )
+            Spacer(modifier = Modifier.height(12.dp))
 
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(bottomStart = 14.dp, bottomEnd = 14.dp))
-                    .background(Color(0xFFFFF5F5))
-                    .clickable(onClick = onLeaveGroup)
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable {
+                        onDismiss()
+                        onLeaveGroup()
+                    }
+                    .padding(horizontal = 12.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
                     imageVector = Icons.Default.Delete,
                     contentDescription = null,
-                    tint = Color(0xFFD32F2F),
-                    modifier = Modifier.size(22.dp)
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(20.dp)
                 )
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(10.dp))
                 Text(
                     text = "Leave Group",
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 15.sp,
-                    color = Color(0xFFD32F2F)
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.error
                 )
+            }
+
+            if (isCreator) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(NegativeRedLight)
+                        .clickable {
+                            onDismiss()
+                            onDeleteGroup()
+                        }
+                        .padding(horizontal = 12.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = null,
+                        tint = NegativeRed,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = "Delete Group",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = NegativeRed,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
         }
     }
@@ -306,7 +547,7 @@ private fun ManageGroupCard(
 @Composable
 private fun BalanceSummaryCard(balanceCents: Long) {
     val isOwed = balanceCents >= 0
-    val bgColor = if (isOwed) GreenBg else RedBg
+    val bgColor = if (isOwed) PositiveGreen else NegativeRed
     val label = if (isOwed) "You are owed" else "You owe"
     val dollars = kotlin.math.abs(balanceCents) / 100.0
     val amount = "$${String.format("%.2f", dollars)}"
@@ -329,7 +570,6 @@ private fun BalanceSummaryCard(balanceCents: Long) {
             Text(
                 text = amount,
                 style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.Bold,
                 color = Color.White
             )
         }
@@ -341,7 +581,7 @@ private fun SectionLabel(text: String) {
     Text(
         text = text,
         style = MaterialTheme.typography.labelMedium,
-        color = Color.Gray,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         letterSpacing = 1.sp
     )
 }
@@ -359,18 +599,28 @@ private fun MemberBalanceCard(
     onAmountChange: (String) -> Unit,
     onConfirm: () -> Unit
 ) {
-    val isOwedByThem = memberBalance.balanceCents >= 0
-    val arrowLabel = if (isOwedByThem) "↑ owes you" else "↓ you owe"
-    val amountColor = if (isOwedByThem) GreenText else RedText
+    val isSettled = memberBalance.balanceCents == 0L
+    val isOwedByThem = memberBalance.balanceCents > 0
+    val arrowLabel = when {
+        isSettled -> "settled up"
+        isOwedByThem -> "owes you"
+        else -> "you owe"
+    }
+    val amountColor = when {
+        isSettled -> MaterialTheme.colorScheme.onSurfaceVariant
+        isOwedByThem -> PositiveGreen
+        else -> NegativeRed
+    }
     val dollars = kotlin.math.abs(memberBalance.balanceCents) / 100.0
     val amount = "$${String.format("%.2f", dollars)}"
 
-    Card(
-        onClick = onCardClick,
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
+            .clickable(onClick = onCardClick)
     ) {
         Row(
             modifier = Modifier
@@ -397,18 +647,23 @@ private fun MemberBalanceCard(
 
             Text(
                 text = memberBalance.name,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium,
-                color = Color.Black,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier.weight(1f)
             )
 
-            Text(
-                text = "$arrowLabel $amount",
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = amountColor
-            )
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = amount,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = amountColor
+                )
+                Text(
+                    text = arrowLabel,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
 
         AnimatedVisibility(visible = isExpanded) {
@@ -437,7 +692,7 @@ private fun MemberBalanceCard(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(Color(0xFFF5F5F5))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
                                 .padding(horizontal = 14.dp, vertical = 12.dp)
                         ) {
                             BasicTextField(
@@ -445,17 +700,19 @@ private fun MemberBalanceCard(
                                 onValueChange = onAmountChange,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                 textStyle = TextStyle(
+                                    fontFamily = DmSansFamily,
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.Medium,
-                                    color = Color.Black
+                                    color = MaterialTheme.colorScheme.onBackground
                                 ),
                                 decorationBox = { innerTextField ->
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text(
                                             text = "$",
+                                            fontFamily = DmSansFamily,
                                             fontSize = 16.sp,
                                             fontWeight = FontWeight.Medium,
-                                            color = Color.Black
+                                            color = MaterialTheme.colorScheme.onBackground
                                         )
                                         innerTextField()
                                     }
@@ -470,16 +727,15 @@ private fun MemberBalanceCard(
 
                 val canConfirm = settleMode != null &&
                     (settleMode == SettleMode.Fully || settleAmount.toDoubleOrNull()?.let { it > 0 } == true)
-                val buttonBrush = if (canConfirm && !isSettling)
-                    Brush.horizontalGradient(listOf(Purple, Blue))
-                else
-                    Brush.horizontalGradient(listOf(Color.LightGray, Color.LightGray))
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(44.dp)
-                        .clip(RoundedCornerShape(50.dp))
-                        .background(buttonBrush)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(
+                            if (canConfirm && !isSettling) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.outline
+                        )
                         .clickable(enabled = canConfirm && !isSettling) { onConfirm() },
                     contentAlignment = Alignment.Center
                 ) {
@@ -493,8 +749,7 @@ private fun MemberBalanceCard(
                         Text(
                             text = "Confirm",
                             color = Color.White,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 15.sp
+                            style = MaterialTheme.typography.titleSmall,
                         )
                     }
                 }
@@ -507,17 +762,24 @@ private fun MemberBalanceCard(
 private fun SettleChip(label: String, selected: Boolean, onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(50.dp))
-            .background(if (selected) Purple else Color.Transparent)
-            .border(1.dp, if (selected) Color.Transparent else Color.LightGray, RoundedCornerShape(50.dp))
+            .clip(RoundedCornerShape(8.dp))
+            .background(
+                if (selected) MaterialTheme.colorScheme.primary
+                else Color.Transparent
+            )
+            .border(
+                1.dp,
+                if (selected) Color.Transparent else MaterialTheme.colorScheme.outline,
+                RoundedCornerShape(8.dp)
+            )
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = label,
-            color = if (selected) Color.White else Color.Gray,
-            fontSize = 13.sp,
+            color = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
         )
     }
@@ -528,65 +790,50 @@ private fun ActivityCard(item: ActivityItem) {
     val dollars = item.amountCents / 100.0
     val amount = "$${String.format("%.2f", dollars)}"
     val badgeLabel = if (item.paidByCurrentUser) "You paid" else "You owe"
-    val badgeBg = if (item.paidByCurrentUser) GreenBadgeBg else RedBadgeBg
-    val badgeTextColor = if (item.paidByCurrentUser) GreenText else RedText
+    val badgeBg = if (item.paidByCurrentUser) PositiveGreenLight else NegativeRedLight
+    val badgeTextColor = if (item.paidByCurrentUser) PositiveGreen else NegativeRed
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.Top,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = item.title,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "${item.dateLabel} · Paid by ${item.paidByLabel}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        Column(horizontalAlignment = Alignment.End) {
+            Text(
+                text = amount,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(badgeBg)
+                    .padding(horizontal = 8.dp, vertical = 3.dp)
             ) {
                 Text(
-                    text = item.title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
+                    text = badgeLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = badgeTextColor,
                 )
-                Text(
-                    text = amount,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-            }
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "${item.dateLabel} · Paid by ${item.paidByLabel}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray
-                )
-
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(badgeBg)
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = badgeLabel,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = badgeTextColor,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
             }
         }
     }

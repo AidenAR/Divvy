@@ -1,8 +1,10 @@
 package com.example.divvy.ui.splitexpense.Views
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,20 +30,24 @@ import androidx.compose.material.icons.rounded.Checklist
 import androidx.compose.material.icons.rounded.Percent
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -55,16 +61,10 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.example.divvy.components.GroupIcon
 import com.example.divvy.models.Group
 import com.example.divvy.ui.splitexpense.ViewModels.SplitExpenseViewModel
+import com.example.divvy.ui.splitexpense.ViewModels.SplitMember
 import com.example.divvy.ui.splitexpense.ViewModels.SplitMethod
-
-private val Purple = Color(0xFF7C4DFF)
-private val Blue = Color(0xFF448AFF)
-private val LightGray = Color(0xFFF5F5F5)
-private val BorderGray = Color(0xFFE8E8E8)
-private val TextGray = Color(0xFF999999)
-private val SubtitleGray = Color(0xFF888888)
-
-private val GradientBrush = Brush.horizontalGradient(listOf(Purple, Blue))
+import com.example.divvy.ui.theme.AvatarColors
+import com.example.divvy.ui.theme.DmSansFamily
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -93,8 +93,8 @@ fun SplitExpenseScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = "Split Expense",
-                        fontWeight = FontWeight.Bold
+                        text = "Add expense",
+                        style = MaterialTheme.typography.titleLarge,
                     )
                 },
                 navigationIcon = {
@@ -104,23 +104,33 @@ fun SplitExpenseScreen(
                             contentDescription = "Back"
                         )
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                )
             )
-        }
+        },
+        containerColor = MaterialTheme.colorScheme.background,
     ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.White)
                 .padding(innerPadding)
         ) {
             Column(
                 modifier = Modifier
                     .weight(1f)
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 24.dp)
+                    .padding(horizontal = 20.dp)
             ) {
                 Spacer(Modifier.height(8.dp))
+
+                MembersSection(
+                    members = uiState.members,
+                    isLoading = uiState.isMembersLoading,
+                )
+
+                Spacer(Modifier.height(24.dp))
 
                 AmountSection(
                     amount = uiState.amount,
@@ -134,7 +144,22 @@ fun SplitExpenseScreen(
                     onDescriptionChange = viewModel::onDescriptionChange
                 )
 
-                Spacer(Modifier.height(28.dp))
+                Spacer(Modifier.height(24.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                Spacer(Modifier.height(24.dp))
+
+                PaidBySplitRow(
+                    paidByName = uiState.paidByName,
+                    splitMethod = uiState.splitMethod,
+                    members = uiState.members,
+                    paidByUserId = uiState.paidByUserId,
+                    onPaidBySelected = viewModel::onPaidBySelected,
+                    onSplitMethodSelected = viewModel::onSplitMethodSelected,
+                )
+
+                Spacer(Modifier.height(24.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                Spacer(Modifier.height(24.dp))
 
                 GroupSelectionSection(
                     groups = uiState.groups,
@@ -142,21 +167,86 @@ fun SplitExpenseScreen(
                     onGroupSelected = viewModel::onGroupSelected
                 )
 
-                Spacer(Modifier.height(28.dp))
-
-                SplitMethodSection(
-                    selectedMethod = uiState.splitMethod,
-                    onMethodSelected = viewModel::onSplitMethodSelected
-                )
+                AnimatedVisibility(
+                    visible = uiState.splitMethod == SplitMethod.Equally &&
+                        uiState.members.isNotEmpty() &&
+                        uiState.perPersonAmount.isNotEmpty()
+                ) {
+                    Column {
+                        Spacer(Modifier.height(24.dp))
+                        SplitPreview(
+                            members = uiState.members,
+                            perPersonAmount = uiState.perPersonAmount,
+                        )
+                    }
+                }
 
                 Spacer(Modifier.height(32.dp))
             }
 
             CreateSplitButton(
-                enabled = uiState.amount.isNotBlank() && uiState.selectedGroupId != null,
+                enabled = uiState.canCreate,
                 isCreating = uiState.isCreating,
                 onClick = viewModel::onCreateSplit
             )
+        }
+    }
+}
+
+@Composable
+private fun MembersSection(
+    members: List<SplitMember>,
+    isLoading: Boolean,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(
+            text = "With you and:",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.width(10.dp))
+
+        if (isLoading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(16.dp),
+                strokeWidth = 2.dp,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        } else {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy((-6).dp),
+                modifier = Modifier.horizontalScroll(rememberScrollState())
+            ) {
+                members.filter { !it.isCurrentUser }.forEachIndexed { index, member ->
+                    val color = AvatarColors[index % AvatarColors.size]
+                    Box(
+                        modifier = Modifier
+                            .size(30.dp)
+                            .clip(CircleShape)
+                            .background(color)
+                            .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = member.name.first().uppercase(),
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+            }
+            if (members.size > 1) {
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = "${members.size - 1} ${if (members.size - 1 == 1) "person" else "people"}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
@@ -166,53 +256,53 @@ private fun AmountSection(
     amount: String,
     onAmountChange: (String) -> Unit
 ) {
-    Text(
-        text = "Total Amount",
-        style = MaterialTheme.typography.bodySmall,
-        color = TextGray,
-        fontSize = 13.sp
-    )
-
-    Spacer(Modifier.height(8.dp))
-
-    Row(
-        verticalAlignment = Alignment.Bottom,
-        modifier = Modifier.fillMaxWidth()
-    ) {
+    Column {
         Text(
-            text = "$",
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Medium,
-            color = Color.Gray,
-            modifier = Modifier.padding(bottom = 4.dp)
+            text = "Amount",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-
-        Spacer(Modifier.width(4.dp))
-
-        BasicTextField(
-            value = amount,
-            onValueChange = onAmountChange,
-            textStyle = TextStyle(
-                fontSize = 40.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black
-            ),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            singleLine = true,
-            cursorBrush = SolidColor(Purple),
-            modifier = Modifier.weight(1f),
-            decorationBox = { innerTextField ->
-                if (amount.isEmpty()) {
-                    Text(
-                        text = "0.00",
-                        fontSize = 40.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.LightGray
-                    )
+        Spacer(Modifier.height(8.dp))
+        Row(
+            verticalAlignment = Alignment.Bottom,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = "$",
+                fontFamily = DmSansFamily,
+                fontSize = 32.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 2.dp)
+            )
+            Spacer(Modifier.width(4.dp))
+            BasicTextField(
+                value = amount,
+                onValueChange = onAmountChange,
+                textStyle = TextStyle(
+                    fontFamily = DmSansFamily,
+                    fontSize = 40.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
+                ),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                singleLine = true,
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                modifier = Modifier.weight(1f),
+                decorationBox = { innerTextField ->
+                    if (amount.isEmpty()) {
+                        Text(
+                            text = "0.00",
+                            fontFamily = DmSansFamily,
+                            fontSize = 40.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                    innerTextField()
                 }
-                innerTextField()
-            }
-        )
+            )
+        }
     }
 }
 
@@ -225,26 +315,28 @@ private fun DescriptionField(
         value = description,
         onValueChange = onDescriptionChange,
         textStyle = TextStyle(
+            fontFamily = DmSansFamily,
             fontSize = 14.sp,
-            color = Color.DarkGray,
+            color = MaterialTheme.colorScheme.onBackground,
             textAlign = TextAlign.Center
         ),
         singleLine = true,
-        cursorBrush = SolidColor(Purple),
+        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
         modifier = Modifier.fillMaxWidth(),
         decorationBox = { innerTextField ->
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(1.dp, BorderGray, RoundedCornerShape(24.dp))
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
+                    .padding(horizontal = 20.dp, vertical = 14.dp),
                 contentAlignment = Alignment.Center
             ) {
                 if (description.isEmpty()) {
                     Text(
                         text = "What's this for?",
+                        fontFamily = DmSansFamily,
                         fontSize = 14.sp,
-                        color = Color.LightGray,
+                        color = MaterialTheme.colorScheme.outline,
                         textAlign = TextAlign.Center
                     )
                 }
@@ -255,22 +347,208 @@ private fun DescriptionField(
 }
 
 @Composable
+private fun PaidBySplitRow(
+    paidByName: String,
+    splitMethod: SplitMethod,
+    members: List<SplitMember>,
+    paidByUserId: String,
+    onPaidBySelected: (String) -> Unit,
+    onSplitMethodSelected: (SplitMethod) -> Unit,
+) {
+    var showPaidByPicker by remember { mutableStateOf(false) }
+    var showSplitPicker by remember { mutableStateOf(false) }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column {
+            Text(
+                text = "Paid by",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(6.dp))
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
+                    .clickable { showPaidByPicker = !showPaidByPicker }
+                    .padding(horizontal = 14.dp, vertical = 10.dp)
+            ) {
+                Text(
+                    text = paidByName,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
+
+        Column(horizontalAlignment = Alignment.End) {
+            Text(
+                text = "Split",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(6.dp))
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
+                    .clickable { showSplitPicker = !showSplitPicker }
+                    .padding(horizontal = 14.dp, vertical = 10.dp)
+            ) {
+                Text(
+                    text = splitMethod.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
+    }
+
+    AnimatedVisibility(visible = showPaidByPicker) {
+        Column(modifier = Modifier.padding(top = 12.dp)) {
+            members.forEach { member ->
+                val isSelected = member.id == paidByUserId
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(
+                            if (isSelected) MaterialTheme.colorScheme.primaryContainer
+                            else Color.Transparent
+                        )
+                        .clickable {
+                            onPaidBySelected(member.id)
+                            showPaidByPicker = false
+                        }
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = member.name,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (isSelected) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onBackground,
+                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (isSelected) {
+                        Icon(
+                            imageVector = Icons.Rounded.Check,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    AnimatedVisibility(visible = showSplitPicker) {
+        Column(
+            modifier = Modifier.padding(top = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            SplitMethod.entries.forEach { method ->
+                SplitMethodChip(
+                    method = method,
+                    isSelected = method == splitMethod,
+                    onClick = {
+                        onSplitMethodSelected(method)
+                        showSplitPicker = false
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SplitMethodChip(
+    method: SplitMethod,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .border(
+                width = if (isSelected) 1.5.dp else 1.dp,
+                color = if (isSelected) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.outline,
+                shape = RoundedCornerShape(12.dp)
+            )
+            .background(
+                if (isSelected) MaterialTheme.colorScheme.primaryContainer
+                else MaterialTheme.colorScheme.surface
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(
+                    if (isSelected) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.surfaceVariant
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = method.icon(),
+                contentDescription = null,
+                tint = if (isSelected) Color.White
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+
+        Spacer(Modifier.width(14.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = method.title,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            Text(
+                text = method.subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        if (isSelected) {
+            Icon(
+                imageVector = Icons.Rounded.Check,
+                contentDescription = "Selected",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
+
+@Composable
 private fun GroupSelectionSection(
     groups: List<Group>,
     selectedGroupId: String?,
     onGroupSelected: (String) -> Unit
 ) {
     Text(
-        text = "Select Group",
-        style = MaterialTheme.typography.bodyMedium,
-        fontWeight = FontWeight.SemiBold,
-        color = Color.Black,
-        fontSize = 15.sp
+        text = "Group",
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
-
-    Spacer(Modifier.height(14.dp))
-
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Spacer(Modifier.height(12.dp))
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         groups.forEach { group ->
             GroupCard(
                 group = group,
@@ -283,31 +561,38 @@ private fun GroupSelectionSection(
 
 @Composable
 private fun GroupCard(group: Group, isSelected: Boolean, onClick: () -> Unit) {
-    val borderColor = if (isSelected) Purple else BorderGray
-    val borderWidth = if (isSelected) 2.dp else 1.dp
-
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .border(borderWidth, borderColor, RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(12.dp))
+            .border(
+                width = if (isSelected) 1.5.dp else 1.dp,
+                color = if (isSelected) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.outline,
+                shape = RoundedCornerShape(12.dp)
+            )
+            .background(
+                if (isSelected) MaterialTheme.colorScheme.primaryContainer
+                else MaterialTheme.colorScheme.surface
+            )
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 14.dp)
     ) {
         Box(
             modifier = Modifier
-                .size(42.dp)
-                .clip(CircleShape)
+                .size(38.dp)
+                .clip(RoundedCornerShape(10.dp))
                 .background(
-                    if (isSelected) GradientBrush
-                    else Brush.horizontalGradient(listOf(LightGray, LightGray))
+                    if (isSelected) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.surfaceVariant
                 ),
             contentAlignment = Alignment.Center
         ) {
             GroupIcon(
                 icon = group.icon,
-                tint = if (isSelected) Color.White else Color.Gray,
+                tint = if (isSelected) Color.White
+                else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp)
             )
         }
@@ -316,9 +601,8 @@ private fun GroupCard(group: Group, isSelected: Boolean, onClick: () -> Unit) {
 
         Text(
             text = group.name,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 15.sp,
-            color = Color.Black,
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onBackground,
             modifier = Modifier.weight(1f)
         )
 
@@ -326,99 +610,66 @@ private fun GroupCard(group: Group, isSelected: Boolean, onClick: () -> Unit) {
             Icon(
                 imageVector = Icons.Rounded.Check,
                 contentDescription = "Selected",
-                tint = Purple,
-                modifier = Modifier.size(22.dp)
-            )
-        }
-    }
-}
-
-@Composable
-private fun SplitMethodSection(
-    selectedMethod: SplitMethod,
-    onMethodSelected: (SplitMethod) -> Unit
-) {
-    Text(
-        text = "Split Method",
-        style = MaterialTheme.typography.bodyMedium,
-        fontWeight = FontWeight.SemiBold,
-        color = Color.Black,
-        fontSize = 15.sp
-    )
-
-    Spacer(Modifier.height(14.dp))
-
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        SplitMethod.entries.forEach { method ->
-            SplitMethodCard(
-                method = method,
-                isSelected = method == selectedMethod,
-                onClick = { onMethodSelected(method) }
-            )
-        }
-    }
-}
-
-@Composable
-private fun SplitMethodCard(
-    method: SplitMethod,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    val borderColor = if (isSelected) Purple else BorderGray
-    val borderWidth = if (isSelected) 2.dp else 1.dp
-
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .border(borderWidth, borderColor, RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 14.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(42.dp)
-                .clip(CircleShape)
-                .background(
-                    if (isSelected) GradientBrush
-                    else Brush.horizontalGradient(listOf(LightGray, LightGray))
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = method.icon(),
-                contentDescription = null,
-                tint = if (isSelected) Color.White else Color.Gray,
+                tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(20.dp)
             )
         }
+    }
+}
 
-        Spacer(Modifier.width(14.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = method.title,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 15.sp,
-                color = Color.Black
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                text = method.subtitle,
-                fontSize = 12.sp,
-                color = SubtitleGray
-            )
-        }
-
-        if (isSelected) {
-            Icon(
-                imageVector = Icons.Rounded.Check,
-                contentDescription = "Selected",
-                tint = Purple,
-                modifier = Modifier.size(22.dp)
-            )
+@Composable
+private fun SplitPreview(
+    members: List<SplitMember>,
+    perPersonAmount: String,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(16.dp)
+    ) {
+        Text(
+            text = "Split preview",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(12.dp))
+        members.forEachIndexed { index, member ->
+            val color = AvatarColors[index % AvatarColors.size]
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(color),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = member.name.first().uppercase(),
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp
+                    )
+                }
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    text = member.name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = "$$perPersonAmount",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+            }
         }
     }
 }
@@ -432,13 +683,13 @@ private fun CreateSplitButton(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp)
+            .padding(horizontal = 20.dp)
             .padding(bottom = 24.dp, top = 8.dp)
-            .height(54.dp)
-            .clip(RoundedCornerShape(50.dp))
+            .height(52.dp)
+            .clip(RoundedCornerShape(14.dp))
             .background(
-                if (enabled && !isCreating) GradientBrush
-                else Brush.horizontalGradient(listOf(Color.LightGray, Color.LightGray))
+                if (enabled && !isCreating) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.outline
             )
             .clickable(enabled = enabled && !isCreating, onClick = onClick),
         contentAlignment = Alignment.Center
@@ -451,10 +702,10 @@ private fun CreateSplitButton(
             )
         } else {
             Text(
-                text = "Create Split",
+                text = "Add expense",
                 color = Color.White,
+                style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
-                fontSize = 16.sp
             )
         }
     }
@@ -465,4 +716,3 @@ private fun SplitMethod.icon(): ImageVector = when (this) {
     SplitMethod.ByPercentage -> Icons.Rounded.Percent
     SplitMethod.ByItems -> Icons.Rounded.Checklist
 }
-

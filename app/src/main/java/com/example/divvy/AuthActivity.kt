@@ -1,11 +1,10 @@
 package com.example.divvy
 
 import android.content.Intent
-import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.core.view.WindowCompat
+import androidx.activity.enableEdgeToEdge
 import com.example.divvy.backend.SupabaseClientProvider
 import com.example.divvy.ui.auth.Views.AuthNav
 import com.example.divvy.ui.theme.DivvyTheme
@@ -21,9 +20,7 @@ class AuthActivity : ComponentActivity() {
             finish()
             return
         }
-        WindowCompat.setDecorFitsSystemWindows(window, false)
-        window.statusBarColor = Color.TRANSPARENT
-        window.navigationBarColor = Color.TRANSPARENT
+        enableEdgeToEdge()
         if (SupabaseClientProvider.isConfigured()) {
             SupabaseClientProvider.client.handleDeeplinks(intent)
         }

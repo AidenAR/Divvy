@@ -4,9 +4,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.OutlinedTextField
 import androidx.compose.material.Text
 import androidx.compose.material.TextFieldDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
@@ -29,11 +29,14 @@ fun AuthTextField(
         onValueChange = onValueChange,
         modifier = modifier,
         singleLine = true,
-        textStyle = TextStyle(fontSize = 15.sp),
+        textStyle = TextStyle(
+            fontSize = 15.sp,
+            color = MaterialTheme.colorScheme.onSurface,
+        ),
         placeholder = {
             Text(
                 text = placeholder,
-                color = Color(0xFF9AA3B2),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 14.sp
             )
         },
@@ -41,10 +44,11 @@ fun AuthTextField(
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
         shape = RoundedCornerShape(14.dp),
         colors = TextFieldDefaults.outlinedTextFieldColors(
-            focusedBorderColor = Color(0xFF4C6FFF),
-            unfocusedBorderColor = Color(0xFFE3E6F0),
-            cursorColor = Color(0xFF4C6FFF),
-            backgroundColor = Color.White
+            textColor = MaterialTheme.colorScheme.onSurface,
+            focusedBorderColor = MaterialTheme.colorScheme.primary,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+            cursorColor = MaterialTheme.colorScheme.primary,
+            backgroundColor = MaterialTheme.colorScheme.surface,
         )
     )
 }

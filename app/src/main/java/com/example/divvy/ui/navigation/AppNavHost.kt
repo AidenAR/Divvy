@@ -1,6 +1,7 @@
 package com.example.divvy.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -9,9 +10,12 @@ import com.example.divvy.ui.assignitems.ViewModels.AssignItemsViewModel
 import com.example.divvy.ui.assignitems.Views.AssignItemsScreen
 import com.example.divvy.ui.splitpercentage.ViewModels.SplitByPercentageViewModel
 import com.example.divvy.ui.splitpercentage.Views.SplitByPercentageScreen
+import androidx.navigation.NavGraph.Companion.findStartDestination
+import com.example.divvy.ui.friends.FriendsScreen
+import com.example.divvy.ui.groups.Views.GroupsScreen
+import com.example.divvy.ui.home.Views.HomeScreen
 import com.example.divvy.ui.analytics.Views.AnalyticsScreen
 import com.example.divvy.ui.groupdetail.Views.GroupDetailScreen
-import com.example.divvy.ui.home.Views.HomeScreen
 import com.example.divvy.ui.ledger.Views.LedgerScreen
 import com.example.divvy.ui.profile.Views.ProfileScreen
 import com.example.divvy.ui.scanreceipt.Views.ScanReceiptScreen
@@ -19,21 +23,38 @@ import com.example.divvy.ui.splitexpense.Views.SplitExpenseScreen
 
 @Composable
 fun AppNavHost(
-    navController: NavHostController
+    navController: NavHostController,
+    modifier: Modifier = Modifier
 ) {
     NavHost(
         navController = navController,
-        startDestination = AppDestination.Home
+        startDestination = AppDestination.Home,
+        modifier = modifier
     ) {
         composable<AppDestination.Home> {
             HomeScreen(
                 onGroupClick = { id -> navController.navigate(AppDestination.GroupDetail(id)) },
+                onGroupsClick = {
+                    navController.navigate(AppDestination.Groups) {
+                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                },
                 onAddExpense = { navController.navigate(AppDestination.SplitExpense()) },
-                onScanReceipt = { navController.navigate(AppDestination.ScanReceipt) },
-                onProfileClick = { navController.navigate(AppDestination.Profile) },
-                onLedgerClick = { navController.navigate(AppDestination.Ledger) },
-                onAnalyticsClick = { navController.navigate(AppDestination.Analytics) }
+                onLedgerClick = { navController.navigate(AppDestination.Ledger) }
             )
+        }
+        composable<AppDestination.Groups> {
+            GroupsScreen(
+                onGroupClick = { id -> navController.navigate(AppDestination.GroupDetail(id)) },
+                onCreatedGroupNavigate = { id ->
+                    navController.navigate(AppDestination.GroupDetail(id))
+                }
+            )
+        }
+        composable<AppDestination.Friends> {
+            FriendsScreen()
         }
         composable<AppDestination.Analytics> {
             AnalyticsScreen(
@@ -97,7 +118,7 @@ fun AppNavHost(
         }
         composable<AppDestination.SplitByPercentage> { backStack ->
             val dest: AppDestination.SplitByPercentage = backStack.toRoute()
-            val viewModel = androidx.hilt.navigation.compose.hiltViewModel<
+            val viewModel = androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel<
                 SplitByPercentageViewModel, SplitByPercentageViewModel.Factory
             >(
                 creationCallback = { factory ->
@@ -117,7 +138,7 @@ fun AppNavHost(
         }
         composable<AppDestination.AssignItems> { backStack ->
             val dest: AppDestination.AssignItems = backStack.toRoute()
-            val viewModel = androidx.hilt.navigation.compose.hiltViewModel<
+            val viewModel = androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel<
                 AssignItemsViewModel, AssignItemsViewModel.Factory
             >(
                 creationCallback = { factory ->

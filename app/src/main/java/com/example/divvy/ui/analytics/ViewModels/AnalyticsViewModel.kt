@@ -2,19 +2,18 @@ package com.example.divvy.ui.analytics.ViewModels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.divvy.backend.CURRENT_USER_ID
+import com.example.divvy.backend.AuthRepository
+import com.example.divvy.backend.DataResult
+import com.example.divvy.backend.ExpensesRepository
 import com.example.divvy.backend.GroupRepository
 import com.example.divvy.components.GroupIcon
 import com.example.divvy.models.Group
-import com.example.divvy.models.GroupExpense
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import java.time.LocalDate
 import javax.inject.Inject
 
 data class GroupSpending(
@@ -62,20 +61,27 @@ private fun formatDollars(cents: Long): String {
 
 @HiltViewModel
 class AnalyticsViewModel @Inject constructor(
-    private val groupRepository: GroupRepository
+    private val authRepository: AuthRepository,
+    private val groupRepository: GroupRepository,
+    private val expensesRepository: ExpensesRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AnalyticsUiState())
     val uiState: StateFlow<AnalyticsUiState> = _uiState.asStateFlow()
 
+    private val myUserId = authRepository.getCurrentUserId()
+
     init {
+        viewModelScope.launch { expensesRepository.refreshAllExpenses() }
+
         viewModelScope.launch {
             combine(
                 groupRepository.listGroups(),
-                groupRepository.getAllExpenses()
-            ) { groups, expenses ->
-                groups to expenses
-            }.collect { (groups, allExpenses) ->
+                expensesRepository.observeAllGroupExpenses()
+            ) { groupsResult, expenses ->
+                groupsResult to expenses
+            }.collect { (groupsResult, allExpenses) ->
+                val groups = (groupsResult as? DataResult.Success)?.data ?: return@collect
                 val realExpenses = allExpenses.filter { it.title != "Settlement" || it.splits.size > 1 }
                 val groupMap = groups.associateBy { it.id }
 
@@ -89,11 +95,11 @@ class AnalyticsViewModel @Inject constructor(
                     totalSpent += expense.amountCents
 
                     val myShare = expense.splits
-                        .find { it.userId == CURRENT_USER_ID }
+                        .find { it.userId == myUserId }
                         ?.amountCents ?: 0L
                     yourShare += myShare
 
-                    if (expense.paidByUserId == CURRENT_USER_ID) {
+                    if (expense.paidByUserId == myUserId) {
                         youPaid += expense.amountCents
                     }
 

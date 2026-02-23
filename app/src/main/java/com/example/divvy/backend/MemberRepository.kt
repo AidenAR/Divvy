@@ -1,0 +1,104 @@
+package com.example.divvy.backend
+
+import com.example.divvy.models.GroupMember
+import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.postgrest.rpc
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import javax.inject.Inject
+import javax.inject.Singleton
+
+interface MemberRepository {
+    fun getMembers(groupId: String): Flow<List<GroupMember>>
+    suspend fun addMember(groupId: String, userId: String)
+    suspend fun leaveGroup(groupId: String)
+    suspend fun refreshMembers(groupId: String)
+    fun clearCache(groupId: String)
+}
+
+@Serializable
+private data class GroupMemberRow(
+    @SerialName("group_id")  val groupId: String = "",
+    @SerialName("user_id")   val userId: String = "",
+    @SerialName("joined_at") val joinedAt: String = ""
+)
+
+@Serializable
+private data class ProfileNameRow(
+    val id: String = "",
+    @SerialName("first_name") val firstName: String = "",
+    @SerialName("last_name")  val lastName: String = ""
+)
+
+@Singleton
+class SupabaseMemberRepository @Inject constructor(
+    private val supabaseClient: SupabaseClient,
+    private val authRepository: AuthRepository
+) : MemberRepository {
+
+    private val _members = MutableStateFlow<Map<String, List<GroupMember>>>(emptyMap())
+
+    override fun getMembers(groupId: String): Flow<List<GroupMember>> =
+        _members.map { it[groupId] ?: emptyList() }
+
+    override suspend fun addMember(groupId: String, userId: String) {
+        val params = buildJsonObject {
+            put("p_group_id", groupId)
+            put("p_user_id", userId)
+        }
+        supabaseClient.postgrest.rpc("add_group_member", params)
+        refreshMembers(groupId)
+    }
+
+    override suspend fun leaveGroup(groupId: String) {
+        supabaseClient.from("group_members").delete {
+            filter {
+                eq("group_id", groupId)
+                eq("user_id", authRepository.getCurrentUserId())
+            }
+        }
+        _members.update { it - groupId }
+    }
+
+    override suspend fun refreshMembers(groupId: String) {
+        val members = fetchMembers(groupId)
+        _members.update { it + (groupId to members) }
+    }
+
+    override fun clearCache(groupId: String) {
+        _members.update { it - groupId }
+    }
+
+    private suspend fun fetchMembers(groupId: String): List<GroupMember> {
+        val memberRows = supabaseClient.from("group_members")
+            .select { filter { eq("group_id", groupId) } }
+            .decodeList<GroupMemberRow>()
+            .filter { it.userId != authRepository.getCurrentUserId() }
+
+        if (memberRows.isEmpty()) return emptyList()
+
+        val userIds = memberRows.map { it.userId }
+        val profiles = supabaseClient.from("profiles")
+            .select { filter { isIn("id", userIds) } }
+            .decodeList<ProfileNameRow>()
+            .associateBy { it.id }
+
+        return memberRows.map { row ->
+            val profile = profiles[row.userId]
+            val name = if (profile != null) {
+                "${profile.firstName} ${profile.lastName}".trim()
+            } else {
+                row.userId
+            }
+            GroupMember(userId = row.userId, name = name)
+        }
+    }
+}

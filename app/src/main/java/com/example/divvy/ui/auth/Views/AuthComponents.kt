@@ -19,14 +19,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.DropdownMenu
 import androidx.compose.material.DropdownMenuItem
 import androidx.compose.material.OutlinedTextField
+import androidx.compose.material.TextFieldDefaults
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -49,12 +51,14 @@ import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.material.TextFieldDefaults
+import com.example.divvy.ui.theme.Amber
+import com.example.divvy.ui.theme.AmberDark
 
-val PurplePrimary = Color(0xFF5F2DE8)
-val PurpleSecondary = Color(0xFF7C3AED)
-val AuthBackground = Color.White
-val MutedText = Color(0xFF8F8F96)
+val AuthBackground: Color
+    @Composable get() = MaterialTheme.colorScheme.background
+
+val MutedText: Color
+    @Composable get() = MaterialTheme.colorScheme.onSurfaceVariant
 
 @Composable
 fun AuthTopBar(
@@ -70,8 +74,9 @@ fun AuthTopBar(
     ) {
         if (onBack != null) {
             Icon(
-                imageVector = Icons.Filled.ArrowBack,
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = "Back",
+                tint = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier
                     .size(28.dp)
                     .align(Alignment.CenterStart)
@@ -80,8 +85,8 @@ fun AuthTopBar(
         }
         Text(
             text = title,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.SemiBold
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onBackground,
         )
     }
 }
@@ -97,10 +102,17 @@ fun AuthPrimaryButton(
         onClick = onClick,
         enabled = enabled,
         modifier = modifier.height(52.dp),
-        shape = RoundedCornerShape(12.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary)
+        shape = RoundedCornerShape(14.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
+        )
     ) {
-        Text(text = label, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+        )
     }
 }
 
@@ -115,9 +127,12 @@ fun AuthOutlinedButton(
         onClick = onClick,
         enabled = enabled,
         modifier = modifier.height(52.dp),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(14.dp)
     ) {
-        Text(text = label, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+        )
     }
 }
 
@@ -132,10 +147,13 @@ fun StepIndicator(
             Box(
                 modifier = Modifier
                     .padding(horizontal = 4.dp)
-                    .width(16.dp)
+                    .width(if (active) 24.dp else 16.dp)
                     .height(4.dp)
                     .clip(RoundedCornerShape(4.dp))
-                    .background(if (active) PurplePrimary else Color(0xFFE1DDF3))
+                    .background(
+                        if (active) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.outline
+                    )
             )
         }
     }
@@ -157,24 +175,33 @@ fun OtpInputRow(
             keyboardType = KeyboardType.Number,
             imeAction = ImeAction.Done
         ),
-        cursorBrush = SolidColor(PurplePrimary),
+        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
         decorationBox = {
             Row(horizontalArrangement = Arrangement.Center) {
                 repeat(length) { index ->
                     val char = value.getOrNull(index)?.toString() ?: ""
+                    val isFocused = index == value.length
                     Box(
                         modifier = Modifier
                             .padding(horizontal = 4.dp)
                             .size(width = 44.dp, height = 48.dp)
                             .border(
-                                width = 1.dp,
-                                color = if (index == value.length) PurplePrimary else Color(0xFFD7D6DF),
+                                width = if (isFocused) 2.dp else 1.dp,
+                                color = if (isFocused) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.outline,
                                 shape = RoundedCornerShape(10.dp)
                             )
-                            .background(Color.White),
+                            .background(
+                                MaterialTheme.colorScheme.surface,
+                                RoundedCornerShape(10.dp)
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(text = char, fontSize = 18.sp, fontWeight = FontWeight.Medium)
+                        Text(
+                            text = char,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
                     }
                 }
             }
@@ -191,14 +218,15 @@ fun PasswordRuleRow(
         Icon(
             imageVector = Icons.Filled.CheckCircle,
             contentDescription = null,
-            tint = if (satisfied) Color(0xFF16A34A) else Color(0xFFBDBCC6),
+            tint = if (satisfied) Color(0xFF16A34A) else MaterialTheme.colorScheme.outline,
             modifier = Modifier.size(16.dp)
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
             text = label,
-            fontSize = 12.sp,
-            color = if (satisfied) Color(0xFF111827) else MutedText
+            style = MaterialTheme.typography.bodySmall,
+            color = if (satisfied) MaterialTheme.colorScheme.onBackground
+            else MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -207,9 +235,8 @@ fun PasswordRuleRow(
 fun AuthGradientBackground(): Brush {
     return Brush.verticalGradient(
         colors = listOf(
-            Color(0xFF2C145C),
-            Color(0xFF3C177B),
-            Color(0xFF4A1D98)
+            Amber,
+            AmberDark,
         )
     )
 }
@@ -220,9 +247,9 @@ data class CountryCodeOption(
 )
 
 private val DefaultCountryCodes = listOf(
-    CountryCodeOption(flag = "🇺🇸", code = "+1"),
-    CountryCodeOption(flag = "🇨🇦", code = "+1"),
-    CountryCodeOption(flag = "🇲🇽", code = "+52"),
+    CountryCodeOption(flag = "\uD83C\uDDFA\uD83C\uDDF8", code = "+1"),
+    CountryCodeOption(flag = "\uD83C\uDDE8\uD83C\uDDE6", code = "+1"),
+    CountryCodeOption(flag = "\uD83C\uDDF2\uD83C\uDDFD", code = "+52"),
 )
 
 @Composable
@@ -281,7 +308,12 @@ fun PhoneNumberField(
                     .weight(1f)
                     .height(52.dp),
                 singleLine = true,
-                placeholder = { Text("Phone number", color = Color(0xFF9AA3B2)) },
+                placeholder = {
+                    Text(
+                        "Phone number",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
                 visualTransformation = transformation,
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Phone,
@@ -289,10 +321,11 @@ fun PhoneNumberField(
                 ),
                 shape = RoundedCornerShape(14.dp),
                 colors = TextFieldDefaults.outlinedTextFieldColors(
-                    focusedBorderColor = Color(0xFF4C6FFF),
-                    unfocusedBorderColor = Color(0xFFE3E6F0),
-                    cursorColor = Color(0xFF4C6FFF),
-                    backgroundColor = Color.White
+                    textColor = MaterialTheme.colorScheme.onSurface,
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                    cursorColor = MaterialTheme.colorScheme.primary,
+                    backgroundColor = MaterialTheme.colorScheme.surface,
                 )
             )
         }

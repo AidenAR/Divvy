@@ -1,23 +1,25 @@
 package com.example.divvy.models
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlin.math.abs
 
 @Serializable
 data class ExpenseSplit(
-    val userId: String,
-    val amountCents: Long       // this person's share of the expense
+    @SerialName("user_id")       val userId: String,
+    @SerialName("amount_cents")  val amountCents: Long, // this person's share of the expense
+    @SerialName("is_covered_by") val isCoveredBy: String? = null
 )
 
 @Serializable
 data class GroupExpense(
     val id: String,
-    val groupId: String,
+    @SerialName("group_id")          val groupId: String,
     val title: String,
-    val amountCents: Long,
-    val paidByUserId: String,   // who fronted the money
-    val splits: List<ExpenseSplit>,
-    val createdAt: String       // ISO date string, e.g. "2025-02-18"
+    @SerialName("amount_cents")      val amountCents: Long,
+    @SerialName("paid_by_user_id")   val paidByUserId: String,
+    val splits: List<ExpenseSplit> = emptyList(),
+    @SerialName("created_at")        val createdAt: String
 )
 
 /**
