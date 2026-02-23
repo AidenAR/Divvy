@@ -3,18 +3,15 @@ package com.example.divvy.ui.assignitems.ViewModels
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.divvy.FeatureFlags
+import com.example.divvy.backend.AuthRepository
 import com.example.divvy.backend.ExpensesRepository
-import com.example.divvy.backend.GroupRepository
-import com.example.divvy.backend.SupabaseClientProvider
+import com.example.divvy.backend.MemberRepository
 import com.example.divvy.models.ExpenseSplit
 import com.example.divvy.models.splitEqually
-import com.example.divvy.ui.auth.DummyAccount
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
-import io.github.jan.supabase.gotrue.auth
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -51,53 +48,46 @@ data class AssignItemsUiState(
 )
 
 private val MemberColors = listOf(
-    Color(0xFF4CAF50),
-    Color(0xFFFF9800),
-    Color(0xFF7C4DFF),
-    Color(0xFF2196F3),
-    Color(0xFF00695C),
-    Color(0xFFE91E63),
+    Color(0xFF10B981),
+    Color(0xFF3B82F6),
+    Color(0xFFF59E0B),
+    Color(0xFFF43F5E),
+    Color(0xFF8B5CF6),
+    Color(0xFF14B8A6),
 )
 
 private val stubItems = listOf(
-    ReceiptItem("i1", "Organic Bananas",    399),
-    ReceiptItem("i2", "Almond Milk",        450),
-    ReceiptItem("i3", "Sourdough Bread",    599),
-    ReceiptItem("i4", "Avocados (4 pack)",  699),
-    ReceiptItem("i5", "Chicken Breast",    1299),
+    ReceiptItem("i1", "Organic Bananas", 399),
+    ReceiptItem("i2", "Almond Milk", 450),
+    ReceiptItem("i3", "Sourdough Bread", 599),
+    ReceiptItem("i4", "Avocados (4 pack)", 699),
+    ReceiptItem("i5", "Chicken Breast", 1299),
 )
 
 @HiltViewModel(assistedFactory = AssignItemsViewModel.Factory::class)
 class AssignItemsViewModel @AssistedInject constructor(
-    @Assisted("groupId")       private val groupId: String,
+    @Assisted("groupId") private val groupId: String,
     @Assisted("amountDisplay") private val amountDisplay: String,
-    @Assisted("description")   private val description: String,
-    private val groupRepository: GroupRepository,
+    @Assisted("description") private val description: String,
+    private val authRepository: AuthRepository,
+    private val memberRepository: MemberRepository,
     private val expensesRepository: ExpensesRepository
 ) : ViewModel() {
 
     @AssistedFactory
     interface Factory {
         fun create(
-            @Assisted("groupId")       groupId: String,
+            @Assisted("groupId") groupId: String,
             @Assisted("amountDisplay") amountDisplay: String,
-            @Assisted("description")   description: String
+            @Assisted("description") description: String
         ): AssignItemsViewModel
     }
 
-    private val currentUserId: String
-        get() = if (FeatureFlags.AUTH_BYPASS) {
-            DummyAccount.USER_ID
-        } else {
-            SupabaseClientProvider.client.auth.currentUserOrNull()?.id
-                ?: error("No authenticated user")
-        }
-
     private val _uiState = MutableStateFlow(
         AssignItemsUiState(
-            description   = description.ifBlank { "Receipt" },
+            description = description.ifBlank { "Receipt" },
             amountDisplay = amountDisplay,
-            isLoading     = true
+            isLoading = true
         )
     )
     val uiState: StateFlow<AssignItemsUiState> = _uiState.asStateFlow()
@@ -109,7 +99,9 @@ class AssignItemsViewModel @AssistedInject constructor(
 
     private fun load() {
         viewModelScope.launch {
-            val groupMembers = groupRepository.getMembers(groupId).first()
+            val currentUserId = authRepository.getCurrentUserId()
+            memberRepository.refreshMembers(groupId)
+            val groupMembers = memberRepository.getMembers(groupId).first()
             val allMembers = mutableListOf(AssignMember(currentUserId, "You", MemberColors[0]))
             groupMembers.forEachIndexed { i, gm ->
                 allMembers += AssignMember(gm.userId, gm.name, MemberColors[(i + 1) % MemberColors.size])
@@ -134,16 +126,15 @@ class AssignItemsViewModel @AssistedInject constructor(
 
     fun assignedNamesForItem(itemId: String): String {
         val state = _uiState.value
-        val ids   = state.assignments[itemId].orEmpty()
+        val ids = state.assignments[itemId].orEmpty()
         if (ids.isEmpty()) return "Not assigned"
         return state.members.filter { it.id in ids }.joinToString(", ") { it.name }
     }
 
     fun onNext() {
-        val state       = _uiState.value
+        val state = _uiState.value
         val amountCents = ((state.amountDisplay.toDoubleOrNull() ?: 0.0) * 100).toLong()
 
-        // Compute per-user amounts: split each assigned item equally among its assignees.
         val perUser = mutableMapOf<String, Long>()
         for (item in state.items) {
             val assignees = state.assignments[item.id].orEmpty()
@@ -157,12 +148,12 @@ class AssignItemsViewModel @AssistedInject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true) }
             expensesRepository.createExpenseWithSplits(
-                groupId     = groupId,
+                groupId = groupId,
                 description = state.description,
                 amountCents = amountCents,
-                currency    = "USD",
+                currency = "USD",
                 splitMethod = "BY_ITEM",
-                splits      = splits
+                splits = splits
             )
             _uiState.update { it.copy(isSaving = false) }
             _done.send(Unit)

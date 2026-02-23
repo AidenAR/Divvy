@@ -2,6 +2,9 @@ package com.example.divvy.ui.home.ViewModels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.divvy.backend.ActivityRepository
+import com.example.divvy.models.ActivityFeedItem
+import com.example.divvy.backend.DataResult
 import com.example.divvy.backend.GroupRepository
 import com.example.divvy.components.GroupIcon
 import com.example.divvy.models.Group
@@ -18,6 +21,8 @@ data class HomeUiState(
     val totalOwedCents: Long = 0L,
     val totalOwingCents: Long = 0L,
     val isLoading: Boolean = false,
+    val errorMessage: String? = null,
+    val activityItems: List<ActivityFeedItem> = emptyList(),
     val showCreateGroupSheet: Boolean = false,
     val createName: String = "",
     val createIcon: GroupIcon = GroupIcon.Group,
@@ -38,7 +43,8 @@ data class HomeUiState(
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    private val groupsRepository: GroupRepository
+    private val groupRepository: GroupRepository,
+    private val activityRepository: ActivityRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState(isLoading = true))
@@ -46,16 +52,45 @@ class HomeViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            groupsRepository.listGroups().collect { groups ->
-                _uiState.update {
-                    it.copy(
-                        groups = groups,
-                        totalOwedCents  = groups.filter { g -> g.balanceCents > 0 }.sumOf { g -> g.balanceCents },
-                        totalOwingCents = groups.filter { g -> g.balanceCents < 0 }.sumOf { g -> kotlin.math.abs(g.balanceCents) },
-                        isLoading = false
-                    )
+            groupRepository.listGroups().collect { result ->
+                _uiState.update { current ->
+                    when (result) {
+                        is DataResult.Loading -> current.copy(isLoading = true, errorMessage = null)
+                        is DataResult.Error -> current.copy(isLoading = false, errorMessage = result.message)
+                        is DataResult.Success -> {
+                            val groups = result.data
+                            current.copy(
+                                groups = groups,
+                                totalOwedCents = groups.filter { g -> g.balanceCents > 0 }.sumOf { g -> g.balanceCents },
+                                totalOwingCents = groups.filter { g -> g.balanceCents < 0 }.sumOf { g -> kotlin.math.abs(g.balanceCents) },
+                                isLoading = false,
+                                errorMessage = null
+                            )
+                        }
+                    }
                 }
             }
+        }
+
+        viewModelScope.launch {
+            activityRepository.refreshActivityFeed() // Initial fetch
+            activityRepository.getGlobalActivityFeed().collect { result ->
+                _uiState.update { current ->
+                    when (result) {
+                        is DataResult.Success -> current.copy(activityItems = result.data)
+                        // Activity feed errors don't block the UI for now, or could show a snackbar
+                        else -> current
+                    }
+                }
+            }
+        }
+    }
+
+    fun onRetry() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+            groupRepository.refreshGroups()
+            activityRepository.refreshActivityFeed()
         }
     }
 
@@ -73,8 +108,7 @@ class HomeViewModel @Inject constructor(
     fun submitCreateGroup() {
         viewModelScope.launch {
             _uiState.update { it.copy(isCreating = true) }
-            groupsRepository.createGroup(_uiState.value.createName.trim(), _uiState.value.createIcon)
-            // No manual reload needed — listGroups() flow re-emits automatically.
+            groupRepository.createGroup(_uiState.value.createName.trim(), _uiState.value.createIcon)
             _uiState.update { it.copy(isCreating = false, showCreateGroupSheet = false) }
         }
     }

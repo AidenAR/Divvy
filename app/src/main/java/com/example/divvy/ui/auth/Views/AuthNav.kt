@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -13,6 +14,7 @@ import androidx.navigation.compose.rememberNavController
 import com.example.divvy.ui.auth.ViewModels.AuthFlowViewModel
 import com.example.divvy.ui.auth.ViewModels.OAuthFlow
 import io.github.jan.supabase.gotrue.SessionStatus
+import kotlinx.coroutines.launch
 
 private object AuthRoute {
     const val LAUNCH               = "launch"
@@ -32,6 +34,7 @@ fun AuthNav(
     val navController = rememberNavController()
     val viewModel: AuthFlowViewModel = hiltViewModel()
     val sessionStatus by viewModel.sessionStatus.collectAsState()
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(sessionStatus) {
         if (sessionStatus is SessionStatus.Authenticated) {
@@ -92,7 +95,15 @@ fun AuthNav(
             VerifyPhoneScreen(
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() },
-                onNext = { navController.navigate(AuthRoute.NAME) },
+                onNext = {
+                    scope.launch {
+                        if (viewModel.hasProfile()) {
+                            onAuthenticated()
+                        } else {
+                            navController.navigate(AuthRoute.NAME)
+                        }
+                    }
+                },
                 onChangePhone = { navController.popBackStack(AuthRoute.CREATE_PHONE, inclusive = false) }
             )
         }

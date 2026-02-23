@@ -1,6 +1,7 @@
 package com.example.divvy.ui.groups.Views
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,52 +19,52 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.example.divvy.components.GroupIcon
 import com.example.divvy.models.Group
+import com.example.divvy.ui.creategroup.CreateGroupSheet
 import com.example.divvy.ui.groups.ViewModels.GroupsViewModel
-
-private val Purple = Color(0xFF7C4DFF)
-
-private val groupColors = listOf(
-    Color(0xFFA5D6A7),
-    Color(0xFF90CAF9),
-    Color(0xFFCE93D8),
-    Color(0xFFFFCC80),
-    Color(0xFFEF9A9A),
-)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GroupsScreen(
-    viewModel: GroupsViewModel = hiltViewModel()
+    viewModel: GroupsViewModel = hiltViewModel(),
+    onGroupClick: (String) -> Unit,
+    onCreatedGroupNavigate: (String) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    LaunchedEffect(uiState.createCompletedGroupId) {
+        val groupId = uiState.createCompletedGroupId ?: return@LaunchedEffect
+        onCreatedGroupNavigate(groupId)
+        viewModel.onCreateNavigationHandled()
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Text(
-                        text = "Manage Groups",
-                        fontWeight = FontWeight.SemiBold
+                        text = "Groups",
+                        style = MaterialTheme.typography.titleLarge,
                     )
                 },
                 actions = {
@@ -71,8 +72,8 @@ fun GroupsScreen(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(Purple)
-                            .clickable { /* TODO: create new group */ },
+                            .background(MaterialTheme.colorScheme.primary)
+                            .clickable { viewModel.onCreateGroupClick() },
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
@@ -83,84 +84,203 @@ fun GroupsScreen(
                         )
                     }
                     Spacer(modifier = Modifier.width(12.dp))
-                }
-            )
-        }
-    ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            items(uiState.groups.size) { index ->
-                val group = uiState.groups[index]
-                val indicatorColor = groupColors[index % groupColors.size]
-                ManageGroupCard(
-                    group = group,
-                    indicatorColor = indicatorColor,
-                    onClick = { /* TODO: navigate to group detail */ }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
                 )
+            )
+        },
+        containerColor = MaterialTheme.colorScheme.background,
+    ) { innerPadding ->
+        when {
+            uiState.isLoading -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                }
             }
+            uiState.errorMessage != null -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = uiState.errorMessage ?: "Something went wrong",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        OutlinedButton(onClick = viewModel::onRetry) {
+                            Text("Retry")
+                        }
+                    }
+                }
+            }
+            else -> {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                        .padding(horizontal = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (uiState.groups.isEmpty()) {
+                        item {
+                            EmptyGroupsCard(onCreateClick = viewModel::onCreateGroupClick)
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                    }
+                    items(uiState.groups.size) { index ->
+                        val group = uiState.groups[index]
+                        ManageGroupCard(
+                            group = group,
+                            onClick = { onGroupClick(group.id) }
+                        )
+                    }
 
-            item {
-                Spacer(modifier = Modifier.height(20.dp))
+                    item {
+                        Spacer(modifier = Modifier.height(20.dp))
+                    }
+                }
             }
         }
+    }
+
+    if (uiState.showCreateGroupSheet) {
+        CreateGroupSheet(
+            step = uiState.createStep,
+            name = uiState.createName,
+            selectedIcon = uiState.createIcon,
+            profiles = uiState.allProfiles,
+            profileSearchQuery = uiState.profileSearchQuery,
+            selectedMemberIds = uiState.selectedMemberIds,
+            isLoadingProfiles = uiState.isLoadingProfiles,
+            isLoading = uiState.isCreating,
+            errorMessage = uiState.createErrorMessage,
+            onNameChange = viewModel::onCreateNameChange,
+            onIconSelected = viewModel::onCreateIconSelected,
+            onSearchChange = viewModel::onProfileSearchChange,
+            onToggleMember = viewModel::onToggleMemberSelection,
+            onBack = viewModel::onCreateBackStep,
+            onNext = viewModel::onCreateNextStep,
+            onCreate = viewModel::submitCreateGroup,
+            onDismiss = viewModel::onCreateGroupDismiss
+        )
     }
 }
 
 @Composable
 private fun ManageGroupCard(
     group: Group,
-    indicatorColor: Color,
     onClick: () -> Unit
 ) {
-    Card(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f), RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier
-                    .size(36.dp)
+                    .size(38.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(indicatorColor),
+                    .background(MaterialTheme.colorScheme.primaryContainer),
                 contentAlignment = Alignment.Center
             ) {
                 GroupIcon(
                     icon = group.icon,
-                    tint = Color.White,
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(20.dp)
                 )
             }
-
             Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = group.name,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        Spacer(modifier = Modifier.height(10.dp))
+        Row {
+            Text(
+                text = "${group.memberCount} members",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            val balanceLabel = if (group.balanceCents >= 0) "you are owed" else "you owe"
+            val balanceValue = "$${String.format("%.2f", kotlin.math.abs(group.balanceCents) / 100.0)}"
+            Text(
+                text = "$balanceValue • $balanceLabel",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
 
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = group.name,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.Black
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = "${group.memberCount} members",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray
-                )
-            }
+@Composable
+private fun EmptyGroupsCard(onCreateClick: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f), RoundedCornerShape(16.dp))
+            .padding(20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .size(52.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primaryContainer),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.Groups,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary
+            )
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = "Start your first group",
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = "Create a group and invite members in one flow.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(14.dp))
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.primary)
+                .clickable(onClick = onCreateClick)
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "Create Group",
+                style = MaterialTheme.typography.labelLarge,
+                color = Color.White
+            )
         }
     }
 }

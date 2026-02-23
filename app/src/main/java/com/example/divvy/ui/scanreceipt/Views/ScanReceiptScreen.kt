@@ -69,12 +69,9 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.example.divvy.ui.theme.Amber
+import com.example.divvy.ui.theme.PositiveGreen
 import kotlinx.coroutines.delay
-
-private val Purple = Color(0xFF7C4DFF)
-private val Blue = Color(0xFF448AFF)
-private val YellowBadge = Color(0xFFFFC107)
-private val GreenCheck = Color(0xFF4CAF50)
 
 private enum class ScanState { Idle, Scanning, Done }
 
@@ -142,21 +139,21 @@ fun ScanReceiptScreen(
                     Row(
                         modifier = Modifier
                             .padding(end = 12.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(YellowBadge)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Amber)
                             .padding(horizontal = 12.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.FlashOn,
                             contentDescription = null,
-                            tint = Color.Black,
+                            tint = Color.White,
                             modifier = Modifier.size(14.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = "Auto-detect ON",
-                            color = Color.Black,
+                            color = Color.White,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -268,13 +265,13 @@ private fun ScanningOverlay(scanState: ScanState) {
                 Box(contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(80.dp),
-                        color = Purple,
+                        color = Amber,
                         strokeWidth = 4.dp
                     )
                     Canvas(modifier = Modifier.size(80.dp)) {
                         drawArc(
                             brush = Brush.sweepGradient(
-                                listOf(Color.Transparent, Blue)
+                                listOf(Color.Transparent, Amber)
                             ),
                             startAngle = sweepAngle,
                             sweepAngle = 90f,
@@ -304,7 +301,7 @@ private fun ScanningOverlay(scanState: ScanState) {
                 Icon(
                     imageVector = Icons.Rounded.CheckCircle,
                     contentDescription = null,
-                    tint = GreenCheck,
+                    tint = PositiveGreen,
                     modifier = Modifier.size(80.dp)
                 )
 
@@ -320,7 +317,7 @@ private fun ScanningOverlay(scanState: ScanState) {
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = "3 items detected  •  \$47.83",
+                    text = "3 items detected  ·  \$47.83",
                     color = Color.White.copy(alpha = 0.6f),
                     fontSize = 13.sp
                 )
@@ -403,7 +400,7 @@ private fun CaptureControls(
             modifier = Modifier
                 .size(72.dp)
                 .clip(CircleShape)
-                .background(Purple.copy(alpha = 0.3f))
+                .background(Amber.copy(alpha = 0.3f))
                 .clickable(enabled = !isScanning, onClick = onCapture),
             contentAlignment = Alignment.Center
         ) {
@@ -411,7 +408,7 @@ private fun CaptureControls(
                 modifier = Modifier
                     .size(58.dp)
                     .clip(CircleShape)
-                    .background(Purple)
+                    .background(Amber)
             )
         }
 

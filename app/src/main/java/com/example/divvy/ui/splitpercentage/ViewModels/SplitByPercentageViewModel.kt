@@ -3,9 +3,9 @@ package com.example.divvy.ui.splitpercentage.ViewModels
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.divvy.backend.CURRENT_USER_ID
-import com.example.divvy.backend.GroupRepository
-import com.example.divvy.models.GroupExpense
+import com.example.divvy.backend.AuthRepository
+import com.example.divvy.backend.ExpensesRepository
+import com.example.divvy.backend.MemberRepository
 import com.example.divvy.models.splitByPercentage
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
@@ -19,7 +19,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.time.LocalDate
 import java.util.UUID
 
 data class PercentageMember(
@@ -44,42 +43,44 @@ data class SplitByPercentageUiState(
 
     fun dollarAmountFor(memberId: String): String {
         val total = amountDisplay.toDoubleOrNull() ?: 0.0
-        val pct   = percentages[memberId]?.toDoubleOrNull() ?: 0.0
+        val pct = percentages[memberId]?.toDoubleOrNull() ?: 0.0
         return "$${String.format("%.2f", total * pct / 100.0)}"
     }
 }
 
 private val MemberColors = listOf(
-    Color(0xFF4CAF50),
-    Color(0xFFFF9800),
-    Color(0xFF7C4DFF),
-    Color(0xFF2196F3),
-    Color(0xFF00695C),
-    Color(0xFFE91E63),
+    Color(0xFF10B981),
+    Color(0xFF3B82F6),
+    Color(0xFFF59E0B),
+    Color(0xFFF43F5E),
+    Color(0xFF8B5CF6),
+    Color(0xFF14B8A6),
 )
 
 @HiltViewModel(assistedFactory = SplitByPercentageViewModel.Factory::class)
 class SplitByPercentageViewModel @AssistedInject constructor(
-    @Assisted("groupId")       private val groupId: String,
+    @Assisted("groupId") private val groupId: String,
     @Assisted("amountDisplay") private val amountDisplay: String,
-    @Assisted("description")   private val description: String,
-    private val groupRepository: GroupRepository
+    @Assisted("description") private val description: String,
+    private val authRepository: AuthRepository,
+    private val memberRepository: MemberRepository,
+    private val expensesRepository: ExpensesRepository
 ) : ViewModel() {
 
     @AssistedFactory
     interface Factory {
         fun create(
-            @Assisted("groupId")       groupId: String,
+            @Assisted("groupId") groupId: String,
             @Assisted("amountDisplay") amountDisplay: String,
-            @Assisted("description")   description: String
+            @Assisted("description") description: String
         ): SplitByPercentageViewModel
     }
 
     private val _uiState = MutableStateFlow(
         SplitByPercentageUiState(
-            description   = description.ifBlank { "Expense" },
+            description = description.ifBlank { "Expense" },
             amountDisplay = amountDisplay,
-            isLoading     = true
+            isLoading = true
         )
     )
     val uiState: StateFlow<SplitByPercentageUiState> = _uiState.asStateFlow()
@@ -87,21 +88,24 @@ class SplitByPercentageViewModel @AssistedInject constructor(
     private val _done = Channel<Unit>(Channel.BUFFERED)
     val done = _done.receiveAsFlow()
 
+    private val myUserId = authRepository.getCurrentUserId()
+
     init { load() }
 
     private fun load() {
         viewModelScope.launch {
-            val groupMembers = groupRepository.getMembers(groupId).first()
-            val allMembers = mutableListOf(PercentageMember(CURRENT_USER_ID, "You", MemberColors[0]))
+            memberRepository.refreshMembers(groupId)
+            val groupMembers = memberRepository.getMembers(groupId).first()
+            val allMembers = mutableListOf(PercentageMember(myUserId, "You", MemberColors[0]))
             groupMembers.forEachIndexed { i, gm ->
                 allMembers += PercentageMember(gm.userId, gm.name, MemberColors[(i + 1) % MemberColors.size])
             }
             val equalPct = String.format("%.1f", 100.0 / allMembers.size)
             _uiState.update {
                 it.copy(
-                    members     = allMembers,
+                    members = allMembers,
                     percentages = allMembers.associate { m -> m.id to equalPct },
-                    isLoading   = false
+                    isLoading = false
                 )
             }
         }
@@ -133,18 +137,16 @@ class SplitByPercentageViewModel @AssistedInject constructor(
             m.id to (state.percentages[m.id]?.toDoubleOrNull() ?: 0.0)
         }
         val splits = splitByPercentage(amountCents, percentages)
-        val expense = GroupExpense(
-            id           = UUID.randomUUID().toString(),
-            groupId      = groupId,
-            title        = state.description,
-            amountCents  = amountCents,
-            paidByUserId = CURRENT_USER_ID,
-            splits       = splits,
-            createdAt    = LocalDate.now().toString()
-        )
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true) }
-            groupRepository.addExpense(expense)
+            expensesRepository.createExpenseWithSplits(
+                groupId = groupId,
+                description = state.description,
+                amountCents = amountCents,
+                currency = "USD",
+                splitMethod = "PERCENTAGE",
+                splits = splits
+            )
             _uiState.update { it.copy(isSaving = false) }
             _done.send(Unit)
         }

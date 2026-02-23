@@ -1,31 +1,29 @@
 package com.example.divvy.backend
 
-import com.example.divvy.FeatureFlags
 import com.example.divvy.models.Expense
 import com.example.divvy.models.ExpenseSplit
 import com.example.divvy.models.GroupExpense
-import com.example.divvy.ui.auth.DummyAccount
 import io.github.jan.supabase.SupabaseClient
-import io.github.jan.supabase.gotrue.auth
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.rpc
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import javax.inject.Inject
+import javax.inject.Singleton
 
+@Singleton
 class SupabaseExpensesRepository @Inject constructor(
-    private val supabaseClient: SupabaseClient
+    private val supabaseClient: SupabaseClient,
+    private val authRepository: AuthRepository
 ) : ExpensesRepository {
 
-    private val currentUserId: String
-        get() = if (FeatureFlags.AUTH_BYPASS) {
-            DummyAccount.USER_ID
-        } else {
-            supabaseClient.auth.currentUserOrNull()?.id
-                ?: error("No authenticated user — cannot access expenses")
-        }
+    private val _expenses = MutableStateFlow<Map<String, List<GroupExpense>>>(emptyMap())
 
     override suspend fun listExpenses(): List<Expense> =
         supabaseClient.from("expenses").select().decodeList()
@@ -73,7 +71,7 @@ class SupabaseExpensesRepository @Inject constructor(
             amountCents = amountCents,
             splitMethod = splitMethod,
             currency = "USD",
-            paidByUserId = currentUserId
+            paidByUserId = authRepository.getCurrentUserId()
         )
         return supabaseClient.from("expenses")
             .insert(expense) { select() }
@@ -94,7 +92,7 @@ class SupabaseExpensesRepository @Inject constructor(
             put("p_amount_cents", amountCents)
             put("p_currency", currency)
             put("p_split_method", splitMethod)
-            put("p_paid_by", currentUserId)
+            put("p_paid_by", authRepository.getCurrentUserId())
             putJsonArray("p_splits") {
                 splits.forEach { split ->
                     add(buildJsonObject {
@@ -110,8 +108,13 @@ class SupabaseExpensesRepository @Inject constructor(
             .rpc("create_expense_with_splits", params)
             .decodeAs<String>()
 
-        return getGroupExpenseById(expenseId)
+        val groupExpense = getGroupExpenseById(expenseId)
             ?: error("Failed to fetch expense after creation: $expenseId")
+
+        _expenses.update { map ->
+            map + (groupId to ((map[groupId] ?: emptyList()) + groupExpense))
+        }
+        return groupExpense
     }
 
     override suspend fun updateExpense(
@@ -148,12 +151,31 @@ class SupabaseExpensesRepository @Inject constructor(
                 }
             }
         }
-
         supabaseClient.postgrest.rpc("update_expense_splits", params)
     }
 
     override suspend fun deleteExpense(expenseId: String) {
         supabaseClient.from("expenses")
             .delete { filter { eq("id", expenseId) } }
+    }
+
+    override fun observeGroupExpenses(groupId: String): Flow<List<GroupExpense>> =
+        _expenses.map { it[groupId] ?: emptyList() }
+
+    override fun observeAllGroupExpenses(): Flow<List<GroupExpense>> =
+        _expenses.map { it.values.flatten() }
+
+    override suspend fun refreshGroupExpenses(groupId: String) {
+        val expenses = listGroupExpenses(groupId)
+        _expenses.update { it + (groupId to expenses) }
+    }
+
+    override suspend fun refreshAllExpenses() {
+        try {
+            val all = supabaseClient.from("group_expenses_with_splits")
+                .select()
+                .decodeList<GroupExpense>()
+            _expenses.value = all.groupBy { it.groupId }
+        } catch (_: Exception) { }
     }
 }

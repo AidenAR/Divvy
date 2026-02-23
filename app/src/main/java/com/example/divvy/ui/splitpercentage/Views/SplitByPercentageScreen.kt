@@ -25,7 +25,6 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -34,6 +33,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -41,7 +41,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
@@ -52,16 +51,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.divvy.ui.splitpercentage.ViewModels.PercentageMember
 import com.example.divvy.ui.splitpercentage.ViewModels.SplitByPercentageViewModel
-
-private val Purple = Color(0xFF7C4DFF)
-private val Blue = Color(0xFF448AFF)
-private val LightGray = Color(0xFFF5F5F5)
-private val BorderGray = Color(0xFFE8E8E8)
-private val TextGray = Color(0xFF999999)
-private val GreenCheck = Color(0xFF4CAF50)
-private val RedWarn = Color(0xFFE53935)
-
-private val GradientBrush = Brush.horizontalGradient(listOf(Purple, Blue))
+import com.example.divvy.ui.theme.DmSansFamily
+import com.example.divvy.ui.theme.NegativeRed
+import com.example.divvy.ui.theme.PositiveGreen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -81,8 +73,8 @@ fun SplitByPercentageScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = "Split by Percentage",
-                        fontWeight = FontWeight.Bold
+                        text = "Split by %",
+                        style = MaterialTheme.typography.titleLarge,
                     )
                 },
                 navigationIcon = {
@@ -97,27 +89,33 @@ fun SplitByPercentageScreen(
                     Box(
                         modifier = Modifier
                             .padding(end = 12.dp)
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(if (uiState.isValid) Purple else Color.LightGray)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(
+                                if (uiState.isValid) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.outline
+                            )
                             .clickable(enabled = uiState.isValid && !uiState.isSaving, onClick = viewModel::onDone)
                             .padding(horizontal = 20.dp, vertical = 8.dp)
                     ) {
                         Text(
                             text = if (uiState.isSaving) "..." else "Done",
                             color = Color.White,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 14.sp
+                            style = MaterialTheme.typography.titleSmall,
                         )
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                )
             )
-        }
+        },
+        containerColor = MaterialTheme.colorScheme.background,
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(horizontal = 24.dp)
+                .padding(horizontal = 20.dp)
         ) {
             item {
                 Spacer(Modifier.height(8.dp))
@@ -146,9 +144,8 @@ fun SplitByPercentageScreen(
                 Text(
                     text = "SET PERCENTAGES",
                     style = MaterialTheme.typography.labelMedium,
-                    color = TextGray,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     letterSpacing = 1.sp,
-                    fontSize = 12.sp
                 )
                 Spacer(Modifier.height(14.dp))
             }
@@ -162,7 +159,7 @@ fun SplitByPercentageScreen(
                         viewModel.onPercentageChange(member.id, value)
                     }
                 )
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(8.dp))
             }
 
             item { Spacer(Modifier.height(24.dp)) }
@@ -175,20 +172,23 @@ private fun InfoCard(description: String, amount: String) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(LightGray)
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
             .padding(horizontal = 18.dp, vertical = 16.dp)
     ) {
-        Text(text = description, fontSize = 14.sp, color = TextGray)
+        Text(
+            text = description,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
         Spacer(Modifier.height(4.dp))
         val displayAmount = amount.toDoubleOrNull()?.let {
             "$${String.format("%.2f", it)}"
         } ?: "$$amount"
         Text(
             text = displayAmount,
-            fontSize = 26.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Black
+            style = MaterialTheme.typography.headlineSmall,
+            color = MaterialTheme.colorScheme.onBackground
         )
     }
 }
@@ -205,7 +205,7 @@ private fun MemberChipsRow(members: List<PercentageMember>) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
+                    .clip(RoundedCornerShape(8.dp))
                     .background(member.color)
                     .padding(start = 10.dp, end = 14.dp, top = 8.dp, bottom = 8.dp)
             ) {
@@ -219,26 +219,10 @@ private fun MemberChipsRow(members: List<PercentageMember>) {
                 Text(
                     text = member.name,
                     color = Color.White,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 13.sp
+                    style = MaterialTheme.typography.labelMedium,
                 )
             }
             Spacer(Modifier.width(8.dp))
-        }
-
-        Box(
-            modifier = Modifier
-                .size(34.dp)
-                .clip(CircleShape)
-                .background(LightGray),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Edit,
-                contentDescription = "Edit members",
-                tint = TextGray,
-                modifier = Modifier.size(16.dp)
-            )
         }
     }
 }
@@ -252,9 +236,9 @@ private fun PercentageTotalBar(
     val progress = (total / 100.0).toFloat().coerceIn(0f, 1f)
     val barColor by animateColorAsState(
         targetValue = when {
-            isValid -> GreenCheck
-            total > 100.0 -> RedWarn
-            else -> Purple
+            isValid -> PositiveGreen
+            total > 100.0 -> NegativeRed
+            else -> MaterialTheme.colorScheme.primary
         },
         label = "barColor"
     )
@@ -269,30 +253,29 @@ private fun PercentageTotalBar(
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(
                     text = "$totalLabel%",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 20.sp,
+                    style = MaterialTheme.typography.titleMedium,
                     color = barColor
                 )
                 Text(
                     text = " / 100%",
-                    fontSize = 14.sp,
-                    color = TextGray,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 1.dp)
                 )
             }
 
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(16.dp))
-                    .border(1.dp, BorderGray, RoundedCornerShape(16.dp))
+                    .clip(RoundedCornerShape(8.dp))
+                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
                     .clickable(onClick = onSplitEvenly)
                     .padding(horizontal = 14.dp, vertical = 6.dp)
             ) {
                 Text(
                     text = "Split evenly",
-                    fontSize = 12.sp,
+                    style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Medium,
-                    color = Purple
+                    color = MaterialTheme.colorScheme.primary
                 )
             }
         }
@@ -306,7 +289,7 @@ private fun PercentageTotalBar(
                 .height(6.dp)
                 .clip(RoundedCornerShape(3.dp)),
             color = barColor,
-            trackColor = LightGray,
+            trackColor = MaterialTheme.colorScheme.surfaceVariant,
         )
     }
 }
@@ -322,9 +305,9 @@ private fun MemberPercentageCard(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .border(1.dp, BorderGray, RoundedCornerShape(14.dp))
-            .background(Color.White)
+            .clip(RoundedCornerShape(12.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surface)
             .padding(horizontal = 16.dp, vertical = 14.dp)
     ) {
         Box(
@@ -347,15 +330,14 @@ private fun MemberPercentageCard(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = member.name,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 15.sp,
-                color = Color.Black
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onBackground
             )
             Spacer(Modifier.height(2.dp))
             Text(
                 text = dollarAmount,
-                fontSize = 13.sp,
-                color = TextGray
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
 
@@ -363,30 +345,32 @@ private fun MemberPercentageCard(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .clip(RoundedCornerShape(10.dp))
-                .background(LightGray)
+                .background(MaterialTheme.colorScheme.surfaceVariant)
                 .padding(horizontal = 12.dp, vertical = 8.dp)
         ) {
             BasicTextField(
                 value = percentage,
                 onValueChange = onPercentageChange,
                 textStyle = TextStyle(
+                    fontFamily = DmSansFamily,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.Black,
+                    color = MaterialTheme.colorScheme.onBackground,
                     textAlign = TextAlign.End
                 ),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 singleLine = true,
-                cursorBrush = SolidColor(Purple),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 modifier = Modifier.width(48.dp),
                 decorationBox = { innerTextField ->
                     Box(contentAlignment = Alignment.CenterEnd) {
                         if (percentage.isEmpty()) {
                             Text(
                                 text = "0",
+                                fontFamily = DmSansFamily,
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.LightGray,
+                                color = MaterialTheme.colorScheme.outline,
                                 textAlign = TextAlign.End
                             )
                         }
@@ -397,9 +381,10 @@ private fun MemberPercentageCard(
             Spacer(Modifier.width(2.dp))
             Text(
                 text = "%",
+                fontFamily = DmSansFamily,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
-                color = TextGray
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }

@@ -2,8 +2,11 @@ package com.example.divvy.ui.ledger.ViewModels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.divvy.backend.CURRENT_USER_ID
+import com.example.divvy.backend.AuthRepository
+import com.example.divvy.backend.DataResult
+import com.example.divvy.backend.ExpensesRepository
 import com.example.divvy.backend.GroupRepository
+import com.example.divvy.backend.MemberRepository
 import com.example.divvy.models.Group
 import com.example.divvy.models.LedgerEntry
 import com.example.divvy.models.LedgerEntryType
@@ -52,26 +55,35 @@ data class LedgerUiState(
 
 @HiltViewModel
 class LedgerViewModel @Inject constructor(
-    private val groupRepository: GroupRepository
+    private val authRepository: AuthRepository,
+    private val groupRepository: GroupRepository,
+    private val memberRepository: MemberRepository,
+    private val expensesRepository: ExpensesRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LedgerUiState())
     val uiState: StateFlow<LedgerUiState> = _uiState.asStateFlow()
 
+    private val myUserId = authRepository.getCurrentUserId()
+
     init {
+        viewModelScope.launch { expensesRepository.refreshAllExpenses() }
+
         viewModelScope.launch {
             combine(
                 groupRepository.listGroups(),
-                groupRepository.getAllExpenses()
-            ) { groups, allExpenses ->
-                groups to allExpenses
-            }.collect { (groups, allExpenses) ->
+                expensesRepository.observeAllGroupExpenses()
+            ) { groupsResult, allExpenses ->
+                groupsResult to allExpenses
+            }.collect { (groupsResult, allExpenses) ->
+                val groups = (groupsResult as? DataResult.Success)?.data ?: return@collect
                 val groupNameMap = groups.associate { it.id to it.name }
 
                 val memberNameMap = mutableMapOf<String, String>()
-                memberNameMap[CURRENT_USER_ID] = "You"
+                memberNameMap[myUserId] = "You"
                 for (group in groups) {
-                    val members = groupRepository.getMembers(group.id).first()
+                    memberRepository.refreshMembers(group.id)
+                    val members = memberRepository.getMembers(group.id).first()
                     for (member in members) {
                         memberNameMap[member.userId] = member.name
                     }
@@ -94,7 +106,7 @@ class LedgerViewModel @Inject constructor(
                         groupName = groupNameMap[expense.groupId] ?: "",
                         paidByName = memberNameMap[expense.paidByUserId] ?: "Unknown",
                         toName = if (toUserId.isNotBlank()) memberNameMap[toUserId] ?: "Unknown" else "",
-                        paidByCurrentUser = expense.paidByUserId == CURRENT_USER_ID
+                        paidByCurrentUser = expense.paidByUserId == myUserId
                     )
                 }.sortedByDescending { it.dateLabel }
 
@@ -146,7 +158,7 @@ class LedgerViewModel @Inject constructor(
 
     private fun dateLabel(isoDate: String): String {
         return try {
-            val date = LocalDate.parse(isoDate)
+            val date = LocalDate.parse(isoDate.take(10))
             val today = LocalDate.now()
             when (date) {
                 today -> "Today"

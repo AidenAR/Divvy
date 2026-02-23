@@ -27,7 +27,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -35,6 +34,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -49,11 +49,6 @@ import androidx.compose.ui.unit.sp
 import com.example.divvy.ui.assignitems.ViewModels.AssignItemsViewModel
 import com.example.divvy.ui.assignitems.ViewModels.AssignMember
 import com.example.divvy.ui.assignitems.ViewModels.ReceiptItem
-
-private val Purple = Color(0xFF7C4DFF)
-private val LightGray = Color(0xFFF5F5F5)
-private val BorderGray = Color(0xFFE8E8E8)
-private val TextGray = Color(0xFF999999)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,7 +69,7 @@ fun AssignItemsScreen(
                 title = {
                     Text(
                         text = "Assign Items",
-                        fontWeight = FontWeight.Bold
+                        style = MaterialTheme.typography.titleLarge,
                     )
                 },
                 navigationIcon = {
@@ -89,27 +84,30 @@ fun AssignItemsScreen(
                     Box(
                         modifier = Modifier
                             .padding(end = 12.dp)
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(Purple)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(MaterialTheme.colorScheme.primary)
                             .clickable(enabled = !uiState.isSaving, onClick = viewModel::onNext)
                             .padding(horizontal = 20.dp, vertical = 8.dp)
                     ) {
                         Text(
                             text = if (uiState.isSaving) "..." else "Done",
                             color = Color.White,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 14.sp
+                            style = MaterialTheme.typography.titleSmall,
                         )
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                )
             )
-        }
+        },
+        containerColor = MaterialTheme.colorScheme.background,
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(horizontal = 24.dp)
+                .padding(horizontal = 20.dp)
         ) {
             item {
                 Spacer(Modifier.height(8.dp))
@@ -129,9 +127,8 @@ fun AssignItemsScreen(
                 Text(
                     text = "TAP ITEMS TO ASSIGN",
                     style = MaterialTheme.typography.labelMedium,
-                    color = TextGray,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     letterSpacing = 1.sp,
-                    fontSize = 12.sp
                 )
                 Spacer(Modifier.height(14.dp))
             }
@@ -152,8 +149,7 @@ fun AssignItemsScreen(
                         viewModel.onToggleMemberForItem(item.id, memberId)
                     }
                 )
-
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(8.dp))
             }
 
             item { Spacer(Modifier.height(24.dp)) }
@@ -166,14 +162,14 @@ private fun StoreInfoCard(description: String, amount: String) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(LightGray)
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
             .padding(horizontal = 18.dp, vertical = 16.dp)
     ) {
         Text(
             text = description,
-            fontSize = 14.sp,
-            color = TextGray
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(Modifier.height(4.dp))
         val displayAmount = amount.toDoubleOrNull()?.let {
@@ -181,9 +177,8 @@ private fun StoreInfoCard(description: String, amount: String) {
         } ?: "$$amount"
         Text(
             text = displayAmount,
-            fontSize = 26.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Black
+            style = MaterialTheme.typography.headlineSmall,
+            color = MaterialTheme.colorScheme.onBackground
         )
     }
 }
@@ -200,21 +195,6 @@ private fun MemberChipsRow(members: List<AssignMember>) {
             MemberChip(member = member)
             Spacer(Modifier.width(8.dp))
         }
-
-        Box(
-            modifier = Modifier
-                .size(34.dp)
-                .clip(CircleShape)
-                .background(LightGray),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Edit,
-                contentDescription = "Edit members",
-                tint = TextGray,
-                modifier = Modifier.size(16.dp)
-            )
-        }
     }
 }
 
@@ -223,7 +203,7 @@ private fun MemberChip(member: AssignMember) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(8.dp))
             .background(member.color)
             .padding(start = 10.dp, end = 14.dp, top = 8.dp, bottom = 8.dp)
     ) {
@@ -237,8 +217,7 @@ private fun MemberChip(member: AssignMember) {
         Text(
             text = member.name,
             color = Color.White,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 13.sp
+            style = MaterialTheme.typography.labelMedium,
         )
     }
 }
@@ -257,9 +236,9 @@ private fun ItemCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .border(1.dp, BorderGray, RoundedCornerShape(14.dp))
-            .background(Color.White)
+            .clip(RoundedCornerShape(12.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surface)
             .clickable(onClick = onTap)
             .padding(horizontal = 16.dp, vertical = 14.dp)
     ) {
@@ -270,16 +249,15 @@ private fun ItemCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = item.name,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 15.sp,
-                    color = Color.Black
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onBackground
                 )
                 Spacer(Modifier.height(4.dp))
                 if (assignedMembers.isEmpty()) {
                     Text(
                         text = "Not assigned",
-                        fontSize = 12.sp,
-                        color = TextGray
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 } else {
                     Row(
@@ -299,9 +277,9 @@ private fun ItemCard(
 
             Text(
                 text = item.formattedPrice,
+                style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
-                fontSize = 16.sp,
-                color = Color.Black
+                color = MaterialTheme.colorScheme.onBackground
             )
         }
 
@@ -343,7 +321,7 @@ private fun InitialAvatar(
             .size(size.dp)
             .clip(CircleShape)
             .background(color)
-            .border(1.5.dp, Color.White, CircleShape),
+            .border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape),
         contentAlignment = Alignment.Center
     ) {
         Text(
@@ -362,8 +340,8 @@ private fun MemberAssignChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val bgColor = if (isAssigned) member.color else Color.White
-    val borderColor = if (isAssigned) member.color else BorderGray
+    val bgColor = if (isAssigned) member.color else MaterialTheme.colorScheme.surface
+    val borderColor = if (isAssigned) member.color else MaterialTheme.colorScheme.outline
 
     Box(
         modifier = modifier
@@ -376,9 +354,9 @@ private fun MemberAssignChip(
     ) {
         Text(
             text = member.name,
-            fontSize = 14.sp,
+            style = MaterialTheme.typography.bodyMedium,
             fontWeight = if (isAssigned) FontWeight.SemiBold else FontWeight.Normal,
-            color = if (isAssigned) Color.White else Color.Black
+            color = if (isAssigned) Color.White else MaterialTheme.colorScheme.onBackground
         )
     }
 }

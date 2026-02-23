@@ -78,6 +78,7 @@ dependencies {
     implementation(libs.androidx.compose.material)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons.extended)
+    implementation(libs.androidx.compose.ui.text.google.fonts)
     implementation(libs.androidx.browser)
     implementation(libs.google.material)
     implementation(libs.androidx.navigation.compose)
@@ -100,6 +101,7 @@ dependencies {
     ksp(libs.hilt.android.compiler)
     ksp(libs.kotlin.metadata.jvm)
     implementation(libs.androidx.hilt.navigation.compose)
+    implementation(libs.androidx.datastore.preferences)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.test.ext.junit)
