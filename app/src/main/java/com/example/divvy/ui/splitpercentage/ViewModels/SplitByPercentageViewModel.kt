@@ -3,8 +3,11 @@ package com.example.divvy.ui.splitpercentage.ViewModels
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.divvy.backend.ActivityRepository
 import com.example.divvy.backend.AuthRepository
+import com.example.divvy.backend.BalanceRepository
 import com.example.divvy.backend.ExpensesRepository
+import com.example.divvy.backend.GroupRepository
 import com.example.divvy.backend.MemberRepository
 import com.example.divvy.models.splitByPercentage
 import dagger.assisted.Assisted
@@ -19,7 +22,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.util.UUID
 
 data class PercentageMember(
     val id: String,
@@ -64,7 +66,10 @@ class SplitByPercentageViewModel @AssistedInject constructor(
     @Assisted("description") private val description: String,
     private val authRepository: AuthRepository,
     private val memberRepository: MemberRepository,
-    private val expensesRepository: ExpensesRepository
+    private val expensesRepository: ExpensesRepository,
+    private val balanceRepository: BalanceRepository,
+    private val groupRepository: GroupRepository,
+    private val activityRepository: ActivityRepository
 ) : ViewModel() {
 
     @AssistedFactory
@@ -147,6 +152,9 @@ class SplitByPercentageViewModel @AssistedInject constructor(
                 splitMethod = "PERCENTAGE",
                 splits = splits
             )
+            balanceRepository.refreshBalances(groupId)
+            groupRepository.refreshGroups()
+            activityRepository.refreshActivityFeed()
             _uiState.update { it.copy(isSaving = false) }
             _done.send(Unit)
         }
