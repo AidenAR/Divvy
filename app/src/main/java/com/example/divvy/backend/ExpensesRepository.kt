@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
+import kotlinx.datetime.Clock
 import java.util.NoSuchElementException
 import java.util.UUID
 import javax.inject.Inject
@@ -77,7 +78,7 @@ class StubExpensesRepository @Inject constructor() : ExpensesRepository {
             splitMethod = splitMethod,
             currency = "USD",
             paidByUserId = "stub_user",
-            createdAt = System.currentTimeMillis().toString()
+            createdAt = Clock.System.now().toString()
         )
         expenses.add(expense)
         return expense
