@@ -3,7 +3,9 @@ package com.example.divvy.ui.splitexpense.ViewModels
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.divvy.backend.ActivityRepository
 import com.example.divvy.backend.AuthRepository
+import com.example.divvy.backend.BalanceRepository
 import com.example.divvy.backend.DataResult
 import com.example.divvy.backend.ExpensesRepository
 import com.example.divvy.backend.GroupRepository
@@ -70,7 +72,9 @@ class SplitExpenseViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val groupRepository: GroupRepository,
     private val memberRepository: MemberRepository,
-    private val expensesRepository: ExpensesRepository
+    private val expensesRepository: ExpensesRepository,
+    private val balanceRepository: BalanceRepository,
+    private val activityRepository: ActivityRepository
 ) : ViewModel() {
 
     private val scannedAmount: String = savedStateHandle["scannedAmount"] ?: ""
@@ -197,6 +201,9 @@ class SplitExpenseViewModel @Inject constructor(
                 splitMethod = "EQUAL",
                 splits = splits
             )
+            balanceRepository.refreshBalances(groupId)
+            groupRepository.refreshGroups()
+            activityRepository.refreshActivityFeed()
             _uiState.update { it.copy(isCreating = false) }
             _events.send(SplitEvent.Created)
         }
