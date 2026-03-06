@@ -18,7 +18,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
@@ -190,16 +189,13 @@ private fun TransactionCard(
             modifier = Modifier
                 .size(40.dp)
                 .clip(RoundedCornerShape(10.dp))
-                .background(
-                    if (tx.isCredit) PositiveGreen.copy(alpha = 0.15f)
-                    else NegativeRed.copy(alpha = 0.10f)
-                ),
+                .background(NegativeRed.copy(alpha = 0.10f)),
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = if (tx.isCredit) Icons.Rounded.ArrowDownward else Icons.Rounded.ArrowUpward,
-                contentDescription = if (tx.isCredit) "Credit" else "Debit",
-                tint = if (tx.isCredit) PositiveGreen else NegativeRed,
+                imageVector = Icons.Rounded.ArrowUpward,
+                contentDescription = "Expense",
+                tint = NegativeRed,
                 modifier = Modifier.size(20.dp)
             )
         }
@@ -216,20 +212,11 @@ private fun TransactionCard(
                 overflow = TextOverflow.Ellipsis,
             )
             Spacer(Modifier.height(2.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = tx.date,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                if (tx.category != null) {
-                    Text(
-                        text = " · ${tx.category}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                    )
-                }
-            }
+            Text(
+                text = tx.date,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
 
         Spacer(Modifier.width(8.dp))
@@ -237,10 +224,10 @@ private fun TransactionCard(
         Column(horizontalAlignment = Alignment.End) {
             val dollars = tx.amountCents / 100.0
             Text(
-                text = "${if (tx.isCredit) "+" else "-"}$${String.format("%.2f", dollars)}",
+                text = "$${String.format("%.2f", dollars)}",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
-                color = if (tx.isCredit) PositiveGreen else MaterialTheme.colorScheme.onBackground,
+                color = MaterialTheme.colorScheme.onBackground,
             )
 
             if (reviewable.status != TransactionStatus.Pending) {

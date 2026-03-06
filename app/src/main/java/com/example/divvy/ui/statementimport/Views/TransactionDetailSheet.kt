@@ -2,7 +2,6 @@ package com.example.divvy.ui.statementimport.Views
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,7 +15,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -34,7 +32,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.divvy.ui.statementimport.ViewModels.ReviewableTransaction
 import com.example.divvy.ui.theme.NegativeRed
-import com.example.divvy.ui.theme.PositiveGreen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -64,16 +61,13 @@ fun TransactionDetailSheet(
                 modifier = Modifier
                     .size(56.dp)
                     .clip(CircleShape)
-                    .background(
-                        if (tx.isCredit) PositiveGreen.copy(alpha = 0.15f)
-                        else NegativeRed.copy(alpha = 0.10f)
-                    ),
+                    .background(NegativeRed.copy(alpha = 0.10f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = if (tx.isCredit) Icons.Rounded.ArrowDownward else Icons.Rounded.ArrowUpward,
+                    imageVector = Icons.Rounded.ArrowUpward,
                     contentDescription = null,
-                    tint = if (tx.isCredit) PositiveGreen else NegativeRed,
+                    tint = NegativeRed,
                     modifier = Modifier.size(28.dp)
                 )
             }
@@ -91,33 +85,19 @@ fun TransactionDetailSheet(
 
             val dollars = tx.amountCents / 100.0
             Text(
-                text = "${if (tx.isCredit) "+" else ""}$${String.format("%.2f", dollars)}",
+                text = "$${String.format("%.2f", dollars)}",
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
-                color = if (tx.isCredit) PositiveGreen else MaterialTheme.colorScheme.onBackground,
+                color = MaterialTheme.colorScheme.onBackground,
             )
 
             Spacer(Modifier.height(8.dp))
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = tx.date,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                if (tx.category != null) {
-                    Text(
-                        text = "·",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        text = tx.category,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
+            Text(
+                text = tx.date,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
 
             Spacer(Modifier.height(28.dp))
 

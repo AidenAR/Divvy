@@ -83,13 +83,13 @@ class DefaultStatementRepository @Inject constructor(
             - "date": string (the date as it appears, e.g. "2025-01-15" or "Jan 15, 2025")
             - "description": string (merchant/payee name, cleaned up)
             - "amountCents": integer (amount in cents, always positive)
-            - "category": string or null (your best guess: "Food", "Transport", "Shopping", "Entertainment", "Bills", "Transfer", "Other")
-            - "isCredit": boolean (true if money was deposited/credited, false if debited/spent)
 
             Rules:
             - Return ONLY the JSON array, no markdown fences, no explanation
             - Every amount must be in cents (e.g. $47.83 = 4783)
-            - Skip header rows, totals, balance summaries — only real transactions
+            - Only include expenses (purchases, payments for goods/services, subscriptions, etc.)
+            - Ignore credits, refunds, deposits, transfers, interest, and fee reversals
+            - Skip header rows, totals, balance summaries
             - Clean up descriptions (remove extra spaces, transaction codes, etc.)
         """.trimIndent()
 

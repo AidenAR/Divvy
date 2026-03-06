@@ -6,9 +6,7 @@ import kotlinx.serialization.Serializable
 data class ParsedTransaction(
     val date: String,
     val description: String,
-    val amountCents: Long,
-    val category: String? = null,
-    val isCredit: Boolean = false
+    val amountCents: Long
 )
 
 enum class TransactionStatus {

@@ -45,11 +45,11 @@ class TransactionReviewViewModel @Inject constructor(
     val uiState: StateFlow<TransactionReviewUiState> = _uiState.asStateFlow()
 
     init {
-        val expenses = transactionHolder.transactions.filter { !it.isCredit }
-        if (expenses.isNotEmpty()) {
+        val transactions = transactionHolder.transactions
+        if (transactions.isNotEmpty()) {
             _uiState.update {
                 it.copy(
-                    transactions = expenses.mapIndexed { index, tx ->
+                    transactions = transactions.mapIndexed { index, tx ->
                         ReviewableTransaction(index = index, transaction = tx)
                     }
                 )
