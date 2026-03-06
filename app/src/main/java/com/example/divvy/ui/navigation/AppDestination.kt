@@ -38,4 +38,10 @@ sealed interface AppDestination {
         val amountDisplay: String,
         val description: String
     ) : AppDestination
+
+    @Serializable
+    data object StatementUpload : AppDestination
+
+    @Serializable
+    data object TransactionReview : AppDestination
 }

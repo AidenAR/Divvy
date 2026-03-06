@@ -20,6 +20,9 @@ import com.example.divvy.ui.ledger.Views.LedgerScreen
 import com.example.divvy.ui.profile.Views.ProfileScreen
 import com.example.divvy.ui.scanreceipt.Views.ScanReceiptScreen
 import com.example.divvy.ui.splitexpense.Views.SplitExpenseScreen
+import com.example.divvy.ui.statementimport.Views.StatementUploadScreen
+import com.example.divvy.ui.statementimport.Views.TransactionReviewScreen
+import com.example.divvy.ui.statementimport.ViewModels.TransactionReviewViewModel
 
 @Composable
 fun AppNavHost(
@@ -42,7 +45,8 @@ fun AppNavHost(
                     }
                 },
                 onAddExpense = { navController.navigate(AppDestination.SplitExpense()) },
-                onLedgerClick = { navController.navigate(AppDestination.Ledger) }
+                onLedgerClick = { navController.navigate(AppDestination.Ledger) },
+                onImportStatement = { navController.navigate(AppDestination.StatementUpload) }
             )
         }
         composable<AppDestination.Groups> {
@@ -148,6 +152,45 @@ fun AppNavHost(
             AssignItemsScreen(
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() },
+                onDone = {
+                    navController.popBackStack(
+                        route = AppDestination.Home,
+                        inclusive = false
+                    )
+                }
+            )
+        }
+        composable<AppDestination.StatementUpload> {
+            StatementUploadScreen(
+                onBack = { navController.popBackStack() },
+                onTransactionsParsed = {
+                    navController.navigate(AppDestination.TransactionReview) {
+                        popUpTo(AppDestination.StatementUpload) { inclusive = true }
+                    }
+                }
+            )
+        }
+        composable<AppDestination.TransactionReview> {
+            val viewModel = androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel<
+                TransactionReviewViewModel
+            >()
+            TransactionReviewScreen(
+                viewModel = viewModel,
+                onBack = {
+                    navController.popBackStack(
+                        route = AppDestination.Home,
+                        inclusive = false
+                    )
+                },
+                onAddAsExpense = { amountCents, description ->
+                    val amountStr = String.format("%.2f", amountCents / 100.0)
+                    navController.navigate(
+                        AppDestination.SplitExpense(
+                            scannedAmount = amountStr,
+                            scannedDescription = description
+                        )
+                    )
+                },
                 onDone = {
                     navController.popBackStack(
                         route = AppDestination.Home,
