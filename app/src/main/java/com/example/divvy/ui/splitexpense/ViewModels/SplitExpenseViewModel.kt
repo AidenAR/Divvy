@@ -10,9 +10,13 @@ import com.example.divvy.backend.DataResult
 import com.example.divvy.backend.ExpensesRepository
 import com.example.divvy.backend.GroupRepository
 import com.example.divvy.backend.MemberRepository
+import com.example.divvy.backend.ProfilesRepository
+import com.example.divvy.components.GroupIcon
 import com.example.divvy.models.Group
 import com.example.divvy.models.GroupMember
+import com.example.divvy.models.ProfileRow
 import com.example.divvy.models.splitEqually
+import com.example.divvy.ui.groups.ViewModels.CreateGroupStep
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -47,6 +51,16 @@ data class SplitExpenseUiState(
     val isLoading: Boolean = false,
     val isCreating: Boolean = false,
     val isMembersLoading: Boolean = false,
+    val showCreateGroup: Boolean = false,
+    val createStep: CreateGroupStep = CreateGroupStep.Basics,
+    val createName: String = "",
+    val createIcon: GroupIcon = GroupIcon.Group,
+    val allProfiles: List<ProfileRow> = emptyList(),
+    val profileSearchQuery: String = "",
+    val selectedMemberIds: Set<String> = emptySet(),
+    val isLoadingProfiles: Boolean = false,
+    val isCreatingGroup: Boolean = false,
+    val createErrorMessage: String? = null,
 ) {
     val paidByName: String
         get() = members.firstOrNull { it.id == paidByUserId }?.name ?: "You"
@@ -74,7 +88,8 @@ class SplitExpenseViewModel @Inject constructor(
     private val memberRepository: MemberRepository,
     private val expensesRepository: ExpensesRepository,
     private val balanceRepository: BalanceRepository,
-    private val activityRepository: ActivityRepository
+    private val activityRepository: ActivityRepository,
+    private val profilesRepository: ProfilesRepository
 ) : ViewModel() {
 
     private val scannedAmount: String = savedStateHandle["scannedAmount"] ?: ""
@@ -164,6 +179,104 @@ class SplitExpenseViewModel @Inject constructor(
 
     fun onPaidBySelected(userId: String) {
         _uiState.update { it.copy(paidByUserId = userId) }
+    }
+
+    fun onShowCreateGroup() {
+        _uiState.update {
+            it.copy(
+                showCreateGroup = true,
+                createStep = CreateGroupStep.Basics,
+                createName = "",
+                createIcon = GroupIcon.Group,
+                profileSearchQuery = "",
+                selectedMemberIds = emptySet(),
+                createErrorMessage = null,
+                isLoadingProfiles = true
+            )
+        }
+        viewModelScope.launch {
+            val profiles = runCatching { profilesRepository.listAllProfiles() }.getOrDefault(emptyList())
+            _uiState.update {
+                it.copy(
+                    allProfiles = profiles.filter { p -> p.id != currentUserId },
+                    isLoadingProfiles = false
+                )
+            }
+        }
+    }
+
+    fun onDismissCreateGroup() {
+        _uiState.update { it.copy(showCreateGroup = false, createStep = CreateGroupStep.Basics) }
+    }
+
+    fun onCreateNameChange(value: String) { _uiState.update { it.copy(createName = value) } }
+    fun onCreateIconSelected(icon: GroupIcon) { _uiState.update { it.copy(createIcon = icon) } }
+    fun onProfileSearchChange(value: String) { _uiState.update { it.copy(profileSearchQuery = value) } }
+
+    fun onToggleMemberSelection(profileId: String) {
+        _uiState.update { current ->
+            val next = current.selectedMemberIds.toMutableSet()
+            if (next.contains(profileId)) next.remove(profileId) else next.add(profileId)
+            current.copy(selectedMemberIds = next)
+        }
+    }
+
+    fun onCreateNextStep() {
+        _uiState.update { current ->
+            val next = when (current.createStep) {
+                CreateGroupStep.Basics -> CreateGroupStep.Members
+                CreateGroupStep.Members -> CreateGroupStep.Review
+                CreateGroupStep.Review -> CreateGroupStep.Review
+            }
+            current.copy(createStep = next, createErrorMessage = null)
+        }
+    }
+
+    fun onCreateBackStep() {
+        _uiState.update { current ->
+            val prev = when (current.createStep) {
+                CreateGroupStep.Basics -> CreateGroupStep.Basics
+                CreateGroupStep.Members -> CreateGroupStep.Basics
+                CreateGroupStep.Review -> CreateGroupStep.Members
+            }
+            current.copy(createStep = prev, createErrorMessage = null)
+        }
+    }
+
+    fun onConfirmCreateGroup() {
+        val current = _uiState.value
+        val name = current.createName.trim()
+        if (name.isBlank()) {
+            _uiState.update { it.copy(createErrorMessage = "Group name is required.") }
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update { it.copy(isCreatingGroup = true, createErrorMessage = null) }
+            runCatching {
+                val group = groupRepository.createGroup(name, current.createIcon)
+                current.selectedMemberIds.forEach { userId ->
+                    runCatching { memberRepository.addMember(group.id, userId) }
+                }
+                memberRepository.refreshMembers(group.id)
+                groupRepository.refreshGroups()
+                _uiState.update {
+                    it.copy(
+                        showCreateGroup = false,
+                        isCreatingGroup = false,
+                        createStep = CreateGroupStep.Basics,
+                        selectedGroupId = group.id
+                    )
+                }
+                loadMembersForGroup(group.id)
+            }.onFailure {
+                _uiState.update {
+                    it.copy(
+                        isCreatingGroup = false,
+                        createErrorMessage = "Unable to create group. Please try again."
+                    )
+                }
+            }
+        }
     }
 
     fun onCreateSplit() {
