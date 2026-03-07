@@ -9,7 +9,9 @@ import com.example.divvy.backend.BalanceRepository
 import com.example.divvy.backend.ExpensesRepository
 import com.example.divvy.backend.GroupRepository
 import com.example.divvy.backend.MemberRepository
+import com.example.divvy.backend.ScannedReceiptStore
 import com.example.divvy.models.ExpenseSplit
+import com.example.divvy.models.ReceiptItemRow
 import com.example.divvy.models.splitEqually
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
@@ -59,12 +61,10 @@ private val MemberColors = listOf(
     Color(0xFF14B8A6),
 )
 
-private val stubItems = listOf(
-    ReceiptItem("i1", "Organic Bananas", 399),
-    ReceiptItem("i2", "Almond Milk", 450),
-    ReceiptItem("i3", "Sourdough Bread", 599),
-    ReceiptItem("i4", "Avocados (4 pack)", 699),
-    ReceiptItem("i5", "Chicken Breast", 1299),
+private val fallbackItems = listOf(
+    ReceiptItem("i1", "Item 1", 0),
+    ReceiptItem("i2", "Item 2", 0),
+    ReceiptItem("i3", "Item 3", 0),
 )
 
 @HiltViewModel(assistedFactory = AssignItemsViewModel.Factory::class)
@@ -77,7 +77,8 @@ class AssignItemsViewModel @AssistedInject constructor(
     private val expensesRepository: ExpensesRepository,
     private val balanceRepository: BalanceRepository,
     private val groupRepository: GroupRepository,
-    private val activityRepository: ActivityRepository
+    private val activityRepository: ActivityRepository,
+    private val scannedReceiptStore: ScannedReceiptStore
 ) : ViewModel() {
 
     @AssistedFactory
@@ -112,7 +113,15 @@ class AssignItemsViewModel @AssistedInject constructor(
             groupMembers.forEachIndexed { i, gm ->
                 allMembers += AssignMember(gm.userId, gm.name, MemberColors[(i + 1) % MemberColors.size])
             }
-            _uiState.update { it.copy(members = allMembers, items = stubItems, isLoading = false) }
+
+            val scannedReceipt = scannedReceiptStore.peek()
+            val items = if (scannedReceipt != null && scannedReceipt.items.isNotEmpty()) {
+                scannedReceipt.items.map { ReceiptItem(it.id, it.name, it.priceCents) }
+            } else {
+                fallbackItems
+            }
+
+            _uiState.update { it.copy(members = allMembers, items = items, isLoading = false) }
         }
     }
 
@@ -153,7 +162,7 @@ class AssignItemsViewModel @AssistedInject constructor(
 
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true) }
-            expensesRepository.createExpenseWithSplits(
+            val groupExpense = expensesRepository.createExpenseWithSplits(
                 groupId = groupId,
                 description = state.description,
                 amountCents = amountCents,
@@ -161,6 +170,16 @@ class AssignItemsViewModel @AssistedInject constructor(
                 splitMethod = "BY_ITEM",
                 splits = splits
             )
+            val receiptRows = state.items.map { item ->
+                val assignees = state.assignments[item.id].orEmpty()
+                ReceiptItemRow(
+                    expenseId = groupExpense.id,
+                    description = item.name,
+                    priceCents = item.priceCents,
+                    assignedUserId = assignees.singleOrNull()
+                )
+            }
+            try { expensesRepository.saveReceiptItems(receiptRows) } catch (_: Exception) { }
             balanceRepository.refreshBalances(groupId)
             groupRepository.refreshGroups()
             activityRepository.refreshActivityFeed()

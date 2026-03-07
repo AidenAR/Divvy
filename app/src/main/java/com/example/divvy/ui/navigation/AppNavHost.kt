@@ -18,6 +18,7 @@ import com.example.divvy.ui.analytics.Views.AnalyticsScreen
 import com.example.divvy.ui.groupdetail.Views.GroupDetailScreen
 import com.example.divvy.ui.ledger.Views.LedgerScreen
 import com.example.divvy.ui.profile.Views.ProfileScreen
+import com.example.divvy.ui.receiptreview.Views.ReceiptReviewScreen
 import com.example.divvy.ui.scanreceipt.Views.ScanReceiptScreen
 import com.example.divvy.ui.splitexpense.Views.SplitExpenseScreen
 import com.example.divvy.ui.statementimport.Views.StatementUploadScreen
@@ -94,14 +95,23 @@ fun AppNavHost(
         composable<AppDestination.ScanReceipt> {
             ScanReceiptScreen(
                 onBack = { navController.popBackStack() },
-                onScanComplete = { amount, description ->
-                    navController.popBackStack()
+                onNavigateToReview = {
+                    navController.navigate(AppDestination.ReceiptReview)
+                }
+            )
+        }
+        composable<AppDestination.ReceiptReview> {
+            ReceiptReviewScreen(
+                onBack = { navController.popBackStack() },
+                onContinue = { amount, description ->
                     navController.navigate(
                         AppDestination.SplitExpense(
                             scannedAmount = amount,
                             scannedDescription = description
                         )
-                    )
+                    ) {
+                        popUpTo<AppDestination.ScanReceipt> { inclusive = true }
+                    }
                 }
             )
         }

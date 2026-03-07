@@ -89,6 +89,7 @@ class SplitExpenseViewModel @Inject constructor(
             amount = scannedAmount,
             description = scannedDescription,
             paidByUserId = currentUserId,
+            splitMethod = if (scannedAmount.isNotEmpty()) SplitMethod.ByItems else SplitMethod.Equally,
         )
     )
     val uiState: StateFlow<SplitExpenseUiState> = _uiState.asStateFlow()

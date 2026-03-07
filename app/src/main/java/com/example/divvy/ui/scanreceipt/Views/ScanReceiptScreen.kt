@@ -5,6 +5,8 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
@@ -35,7 +37,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.FlashOff
 import androidx.compose.material.icons.rounded.FlashOn
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material3.CircularProgressIndicator
@@ -48,6 +51,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -68,21 +72,23 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.example.divvy.ui.scanreceipt.ViewModels.ScanReceiptViewModel
+import com.example.divvy.ui.scanreceipt.ViewModels.ScanUiState
 import com.example.divvy.ui.theme.Amber
-import com.example.divvy.ui.theme.PositiveGreen
-import kotlinx.coroutines.delay
-
-private enum class ScanState { Idle, Scanning, Done }
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ScanReceiptScreen(
+    viewModel: ScanReceiptViewModel = hiltViewModel(),
     onBack: () -> Unit,
-    onScanComplete: (amount: String, description: String) -> Unit
+    onNavigateToReview: () -> Unit
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val state by viewModel.state.collectAsState()
 
     var hasCameraPermission by remember {
         mutableStateOf(
@@ -97,7 +103,17 @@ fun ScanReceiptScreen(
         hasCameraPermission = granted
     }
 
-    var scanState by remember { mutableStateOf(ScanState.Idle) }
+    val imageCapture = remember {
+        ImageCapture.Builder()
+            .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+            .build()
+    }
+
+    val galleryLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let { viewModel.processImage(context, it) }
+    }
 
     LaunchedEffect(Unit) {
         if (!hasCameraPermission) {
@@ -105,15 +121,17 @@ fun ScanReceiptScreen(
         }
     }
 
-    LaunchedEffect(scanState) {
-        if (scanState == ScanState.Scanning) {
-            delay(2500)
-            scanState = ScanState.Done
+    LaunchedEffect(Unit) {
+        viewModel.events.collect { event ->
+            when (event) {
+                ScanReceiptViewModel.ScanEvent.NavigateToReview -> onNavigateToReview()
+            }
         }
-        if (scanState == ScanState.Done) {
-            delay(800)
-            onScanComplete("47.83", "Dinner at Maple Bistro")
-        }
+    }
+
+    LaunchedEffect(state.flashEnabled) {
+        imageCapture.flashMode = if (state.flashEnabled)
+            ImageCapture.FLASH_MODE_ON else ImageCapture.FLASH_MODE_OFF
     }
 
     Scaffold(
@@ -189,7 +207,8 @@ fun ScanReceiptScreen(
                                 cameraProvider.bindToLifecycle(
                                     lifecycleOwner,
                                     CameraSelector.DEFAULT_BACK_CAMERA,
-                                    preview
+                                    preview,
+                                    imageCapture
                                 )
                             } catch (_: Exception) { }
                         }, ContextCompat.getMainExecutor(ctx))
@@ -218,8 +237,38 @@ fun ScanReceiptScreen(
                 )
 
                 CaptureControls(
-                    isScanning = scanState != ScanState.Idle,
-                    onCapture = { if (scanState == ScanState.Idle) scanState = ScanState.Scanning }
+                    isProcessing = state.uiState != ScanUiState.Camera,
+                    flashEnabled = state.flashEnabled,
+                    onCapture = {
+                        if (state.uiState == ScanUiState.Camera) {
+                            val outputFile = File(
+                                context.cacheDir,
+                                "receipt_${System.currentTimeMillis()}.jpg"
+                            )
+                            val outputOptions = ImageCapture.OutputFileOptions
+                                .Builder(outputFile).build()
+
+                            imageCapture.takePicture(
+                                outputOptions,
+                                ContextCompat.getMainExecutor(context),
+                                object : ImageCapture.OnImageSavedCallback {
+                                    override fun onImageSaved(
+                                        output: ImageCapture.OutputFileResults
+                                    ) {
+                                        viewModel.processImageFromFile(context, outputFile)
+                                    }
+
+                                    override fun onError(exception: ImageCaptureException) {
+                                        viewModel.dismissError()
+                                    }
+                                }
+                            )
+                        }
+                    },
+                    onGallery = {
+                        galleryLauncher.launch("image/*")
+                    },
+                    onFlash = viewModel::toggleFlash
                 )
 
                 Text(
@@ -231,18 +280,29 @@ fun ScanReceiptScreen(
             }
 
             AnimatedVisibility(
-                visible = scanState != ScanState.Idle,
+                visible = state.uiState == ScanUiState.Processing,
                 enter = fadeIn(tween(300)),
                 exit = fadeOut(tween(300))
             ) {
-                ScanningOverlay(scanState = scanState)
+                ProcessingOverlay()
+            }
+
+            AnimatedVisibility(
+                visible = state.uiState == ScanUiState.Error,
+                enter = fadeIn(tween(300)),
+                exit = fadeOut(tween(300))
+            ) {
+                ErrorOverlay(
+                    message = state.errorMessage ?: "An error occurred",
+                    onDismiss = viewModel::dismissError
+                )
             }
         }
     }
 }
 
 @Composable
-private fun ScanningOverlay(scanState: ScanState) {
+private fun ProcessingOverlay() {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -250,78 +310,105 @@ private fun ScanningOverlay(scanState: ScanState) {
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            if (scanState == ScanState.Scanning) {
-                val infiniteTransition = rememberInfiniteTransition(label = "scan")
-                val sweepAngle by infiniteTransition.animateFloat(
-                    initialValue = 0f,
-                    targetValue = 360f,
-                    animationSpec = infiniteRepeatable(
-                        animation = tween(1200, easing = LinearEasing),
-                        repeatMode = RepeatMode.Restart
-                    ),
-                    label = "sweep"
-                )
+            val infiniteTransition = rememberInfiniteTransition(label = "scan")
+            val sweepAngle by infiniteTransition.animateFloat(
+                initialValue = 0f,
+                targetValue = 360f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(1200, easing = LinearEasing),
+                    repeatMode = RepeatMode.Restart
+                ),
+                label = "sweep"
+            )
 
-                Box(contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(80.dp),
-                        color = Amber,
-                        strokeWidth = 4.dp
+            Box(contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(80.dp),
+                    color = Amber,
+                    strokeWidth = 4.dp
+                )
+                Canvas(modifier = Modifier.size(80.dp)) {
+                    drawArc(
+                        brush = Brush.sweepGradient(
+                            listOf(Color.Transparent, Amber)
+                        ),
+                        startAngle = sweepAngle,
+                        sweepAngle = 90f,
+                        useCenter = false,
+                        style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round)
                     )
-                    Canvas(modifier = Modifier.size(80.dp)) {
-                        drawArc(
-                            brush = Brush.sweepGradient(
-                                listOf(Color.Transparent, Amber)
-                            ),
-                            startAngle = sweepAngle,
-                            sweepAngle = 90f,
-                            useCenter = false,
-                            style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round)
-                        )
-                    }
                 }
+            }
 
-                Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-                Text(
-                    text = "Scanning receipt...",
-                    color = Color.White,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
+            Text(
+                text = "Scanning receipt...",
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold
+            )
 
-                Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-                Text(
-                    text = "Detecting items and prices",
-                    color = Color.White.copy(alpha = 0.6f),
-                    fontSize = 13.sp
-                )
-            } else if (scanState == ScanState.Done) {
+            Text(
+                text = "Detecting items and prices",
+                color = Color.White.copy(alpha = 0.6f),
+                fontSize = 13.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun ErrorOverlay(
+    message: String,
+    onDismiss: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.8f))
+            .clickable(onClick = onDismiss),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(horizontal = 48.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(64.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFDC2626).copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center
+            ) {
                 Icon(
-                    imageVector = Icons.Rounded.CheckCircle,
+                    imageVector = Icons.Rounded.Close,
                     contentDescription = null,
-                    tint = PositiveGreen,
-                    modifier = Modifier.size(80.dp)
-                )
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                Text(
-                    text = "Receipt scanned!",
-                    color = Color.White,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    text = "3 items detected  ·  \$47.83",
-                    color = Color.White.copy(alpha = 0.6f),
-                    fontSize = 13.sp
+                    tint = Color(0xFFDC2626),
+                    modifier = Modifier.size(32.dp)
                 )
             }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Text(
+                text = message,
+                color = Color.White,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center,
+                lineHeight = 22.sp
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                text = "Tap anywhere to try again",
+                color = Color.White.copy(alpha = 0.5f),
+                fontSize = 13.sp
+            )
         }
     }
 }
@@ -370,8 +457,11 @@ private fun ReceiptFrame() {
 
 @Composable
 private fun CaptureControls(
-    isScanning: Boolean,
-    onCapture: () -> Unit
+    isProcessing: Boolean,
+    flashEnabled: Boolean,
+    onCapture: () -> Unit,
+    onGallery: () -> Unit,
+    onFlash: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -385,7 +475,7 @@ private fun CaptureControls(
                 .size(48.dp)
                 .clip(RoundedCornerShape(12.dp))
                 .background(Color.White.copy(alpha = 0.15f))
-                .clickable(enabled = !isScanning) { },
+                .clickable(enabled = !isProcessing, onClick = onGallery),
             contentAlignment = Alignment.Center
         ) {
             Icon(
@@ -401,7 +491,7 @@ private fun CaptureControls(
                 .size(72.dp)
                 .clip(CircleShape)
                 .background(Amber.copy(alpha = 0.3f))
-                .clickable(enabled = !isScanning, onClick = onCapture),
+                .clickable(enabled = !isProcessing, onClick = onCapture),
             contentAlignment = Alignment.Center
         ) {
             Box(
@@ -416,14 +506,17 @@ private fun CaptureControls(
             modifier = Modifier
                 .size(48.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(Color.White.copy(alpha = 0.15f))
-                .clickable(enabled = !isScanning) { },
+                .background(
+                    if (flashEnabled) Amber.copy(alpha = 0.3f)
+                    else Color.White.copy(alpha = 0.15f)
+                )
+                .clickable(enabled = !isProcessing, onClick = onFlash),
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Rounded.FlashOn,
+                imageVector = if (flashEnabled) Icons.Rounded.FlashOn else Icons.Rounded.FlashOff,
                 contentDescription = "Flash",
-                tint = Color.White,
+                tint = if (flashEnabled) Amber else Color.White,
                 modifier = Modifier.size(22.dp)
             )
         }
