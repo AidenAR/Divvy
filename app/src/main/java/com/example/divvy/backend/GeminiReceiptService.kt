@@ -64,15 +64,19 @@ class GeminiReceiptService @Inject constructor() {
               - "priceCents": integer (price in cents, e.g. $4.99 = 499)
             - "subtotalCents": integer (subtotal in cents, 0 if not visible)
             - "taxCents": integer (tax amount in cents, 0 if not visible)
-            - "totalCents": integer (total in cents)
+            - "tipCents": integer (tip/gratuity in cents, 0 if not visible or not included)
+            - "discountCents": integer (discount/coupon/promo amount in cents as a positive number, 0 if none)
+            - "totalCents": integer (final total in cents, after tax, tip, and discounts)
             
             Rules:
             - Return ONLY the JSON object, no markdown fences, no explanation
             - Every amount must be in cents (e.g. $12.50 = 1250)
-            - Only include purchased items, not payment methods, change, tips, or metadata
+            - Only include purchased items in the items array, not payment methods, change, tips, discounts, or metadata
+            - discountCents should be a positive number representing the amount saved
+            - tipCents should reflect the tip/gratuity if written on the receipt (0 if blank or not present)
             - Clean up item names (remove codes, extra spaces, abbreviations where obvious)
             - If you cannot read a price, skip that item
-            - If total is not visible, sum the items + tax
+            - If total is not visible, calculate: items + tax + tip - discount
         """.trimIndent()
 
         val request = GeminiVisionRequest(
@@ -132,6 +136,8 @@ class GeminiReceiptService @Inject constructor() {
             },
             subtotalCents = raw.subtotalCents,
             taxCents = raw.taxCents,
+            tipCents = raw.tipCents,
+            discountCents = raw.discountCents,
             totalCents = raw.totalCents
         )
     }
@@ -196,6 +202,8 @@ private data class RawGeminiReceipt(
     val items: List<RawGeminiItem> = emptyList(),
     val subtotalCents: Long = 0L,
     val taxCents: Long = 0L,
+    val tipCents: Long = 0L,
+    val discountCents: Long = 0L,
     val totalCents: Long = 0L
 )
 

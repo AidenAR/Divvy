@@ -1,5 +1,6 @@
 package com.example.divvy.ui.assignitems.ViewModels
 
+import android.util.Log
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -148,7 +149,6 @@ class AssignItemsViewModel @AssistedInject constructor(
 
     fun onNext() {
         val state = _uiState.value
-        val amountCents = ((state.amountDisplay.toDoubleOrNull() ?: 0.0) * 100).toLong()
 
         val perUser = mutableMapOf<String, Long>()
         for (item in state.items) {
@@ -158,7 +158,32 @@ class AssignItemsViewModel @AssistedInject constructor(
                 perUser[split.userId] = (perUser[split.userId] ?: 0L) + split.amountCents
             }
         }
+
+        val receipt = scannedReceiptStore.peek()
+        Log.d("AssignItems", "receipt=${receipt != null}, tax=${receipt?.taxCents}, tip=${receipt?.tipCents}, discount=${receipt?.discountCents}")
+        val participantIds = perUser.keys.toList()
+        Log.d("AssignItems", "participants=$participantIds, itemTotal=${perUser.values.sum()}")
+        if (receipt != null && participantIds.isNotEmpty()) {
+            if (receipt.taxCents > 0) {
+                for (split in splitEqually(receipt.taxCents, participantIds)) {
+                    perUser[split.userId] = (perUser[split.userId] ?: 0L) + split.amountCents
+                }
+            }
+            if (receipt.tipCents > 0) {
+                for (split in splitEqually(receipt.tipCents, participantIds)) {
+                    perUser[split.userId] = (perUser[split.userId] ?: 0L) + split.amountCents
+                }
+            }
+            if (receipt.discountCents > 0) {
+                for (split in splitEqually(receipt.discountCents, participantIds)) {
+                    perUser[split.userId] = (perUser[split.userId] ?: 0L) - split.amountCents
+                }
+            }
+        }
+
         val splits = state.members.map { m -> ExpenseSplit(m.id, perUser[m.id] ?: 0L) }
+        val amountCents = splits.sumOf { it.amountCents }
+        Log.d("AssignItems", "finalTotal=$amountCents, splits=$splits")
 
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true) }
@@ -178,8 +203,20 @@ class AssignItemsViewModel @AssistedInject constructor(
                     priceCents = item.priceCents,
                     assignedUserId = assignees.singleOrNull()
                 )
+            }.toMutableList()
+            if (receipt != null) {
+                if (receipt.tipCents > 0) {
+                    receiptRows += ReceiptItemRow(groupExpense.id, "Tip", receipt.tipCents)
+                }
+                if (receipt.discountCents > 0) {
+                    receiptRows += ReceiptItemRow(groupExpense.id, "Discount", receipt.discountCents)
+                }
             }
-            try { expensesRepository.saveReceiptItems(receiptRows) } catch (_: Exception) { }
+            try {
+                expensesRepository.saveReceiptItems(receiptRows)
+            } catch (e: Exception) {
+                Log.e("AssignItems", "Failed to save receipt items", e)
+            }
             balanceRepository.refreshBalances(groupId)
             groupRepository.refreshGroups()
             activityRepository.refreshActivityFeed()

@@ -24,6 +24,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AttachMoney
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Checklist
@@ -60,6 +61,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.example.divvy.components.GroupIcon
 import com.example.divvy.models.Group
+import com.example.divvy.ui.creategroup.CreateGroupSheet
 import com.example.divvy.ui.splitexpense.ViewModels.SplitExpenseViewModel
 import com.example.divvy.ui.splitexpense.ViewModels.SplitMember
 import com.example.divvy.ui.splitexpense.ViewModels.SplitMethod
@@ -164,7 +166,8 @@ fun SplitExpenseScreen(
                 GroupSelectionSection(
                     groups = uiState.groups,
                     selectedGroupId = uiState.selectedGroupId,
-                    onGroupSelected = viewModel::onGroupSelected
+                    onGroupSelected = viewModel::onGroupSelected,
+                    onCreateGroup = viewModel::onShowCreateGroup
                 )
 
                 AnimatedVisibility(
@@ -190,6 +193,28 @@ fun SplitExpenseScreen(
                 onClick = viewModel::onCreateSplit
             )
         }
+    }
+
+    if (uiState.showCreateGroup) {
+        CreateGroupSheet(
+            step = uiState.createStep,
+            name = uiState.createName,
+            selectedIcon = uiState.createIcon,
+            profiles = uiState.allProfiles,
+            profileSearchQuery = uiState.profileSearchQuery,
+            selectedMemberIds = uiState.selectedMemberIds,
+            isLoadingProfiles = uiState.isLoadingProfiles,
+            isLoading = uiState.isCreatingGroup,
+            errorMessage = uiState.createErrorMessage,
+            onNameChange = viewModel::onCreateNameChange,
+            onIconSelected = viewModel::onCreateIconSelected,
+            onSearchChange = viewModel::onProfileSearchChange,
+            onToggleMember = viewModel::onToggleMemberSelection,
+            onBack = viewModel::onCreateBackStep,
+            onNext = viewModel::onCreateNextStep,
+            onCreate = viewModel::onConfirmCreateGroup,
+            onDismiss = viewModel::onDismissCreateGroup
+        )
     }
 }
 
@@ -540,7 +565,8 @@ private fun SplitMethodChip(
 private fun GroupSelectionSection(
     groups: List<Group>,
     selectedGroupId: String?,
-    onGroupSelected: (String) -> Unit
+    onGroupSelected: (String) -> Unit,
+    onCreateGroup: () -> Unit
 ) {
     Text(
         text = "Group",
@@ -556,6 +582,41 @@ private fun GroupSelectionSection(
                 onClick = { onGroupSelected(group.id) }
             )
         }
+        NewGroupCard(onClick = onCreateGroup)
+    }
+}
+
+@Composable
+private fun NewGroupCard(onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(38.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(MaterialTheme.colorScheme.primaryContainer),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Add,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+        Spacer(Modifier.width(14.dp))
+        Text(
+            text = "New group",
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.primary,
+        )
     }
 }
 

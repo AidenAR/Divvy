@@ -177,9 +177,15 @@ fun ReceiptReviewScreen(
                     TotalsSummary(
                         subtotal = uiState.formattedItemsTotal,
                         tax = uiState.formattedTax,
+                        tip = uiState.formattedTip,
+                        discount = uiState.formattedDiscount,
                         total = uiState.formattedTotal,
                         taxCents = uiState.taxCents,
-                        onTaxChange = viewModel::onTaxChange
+                        tipCents = uiState.tipCents,
+                        discountCents = uiState.discountCents,
+                        onTaxChange = viewModel::onTaxChange,
+                        onTipChange = viewModel::onTipChange,
+                        onDiscountChange = viewModel::onDiscountChange
                     )
                     Spacer(Modifier.height(24.dp))
                 }
@@ -468,9 +474,15 @@ private fun AddItemButton(onClick: () -> Unit) {
 private fun TotalsSummary(
     subtotal: String,
     tax: String,
+    tip: String,
+    discount: String,
     total: String,
     taxCents: Long,
-    onTaxChange: (String) -> Unit
+    tipCents: Long,
+    discountCents: Long,
+    onTaxChange: (String) -> Unit,
+    onTipChange: (String) -> Unit,
+    onDiscountChange: (String) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -483,50 +495,30 @@ private fun TotalsSummary(
 
         Spacer(Modifier.height(10.dp))
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = "Tax",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "$",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                BasicTextField(
-                    value = if (taxCents > 0) String.format("%.2f", taxCents / 100.0) else "",
-                    onValueChange = onTaxChange,
-                    textStyle = TextStyle(
-                        fontFamily = DmSansFamily,
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        textAlign = TextAlign.End
-                    ),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                    modifier = Modifier.width(64.dp),
-                    decorationBox = { innerTextField ->
-                        if (taxCents == 0L) {
-                            Text(
-                                text = "0.00",
-                                fontSize = 14.sp,
-                                color = MaterialTheme.colorScheme.outline,
-                                textAlign = TextAlign.End,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                        innerTextField()
-                    }
-                )
-            }
-        }
+        EditableSummaryRow(
+            label = "Tax",
+            prefix = "$",
+            cents = taxCents,
+            onChange = onTaxChange
+        )
+
+        Spacer(Modifier.height(10.dp))
+
+        EditableSummaryRow(
+            label = "Tip",
+            prefix = "$",
+            cents = tipCents,
+            onChange = onTipChange
+        )
+
+        Spacer(Modifier.height(10.dp))
+
+        EditableSummaryRow(
+            label = "Discount",
+            prefix = "-$",
+            cents = discountCents,
+            onChange = onDiscountChange
+        )
 
         Spacer(Modifier.height(12.dp))
         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
@@ -548,6 +540,59 @@ private fun TotalsSummary(
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary,
+            )
+        }
+    }
+}
+
+@Composable
+private fun EditableSummaryRow(
+    label: String,
+    prefix: String,
+    cents: Long,
+    onChange: (String) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = prefix,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            BasicTextField(
+                value = if (cents > 0) String.format("%.2f", cents / 100.0) else "",
+                onValueChange = onChange,
+                textStyle = TextStyle(
+                    fontFamily = DmSansFamily,
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    textAlign = TextAlign.End
+                ),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                modifier = Modifier.width(64.dp),
+                decorationBox = { innerTextField ->
+                    if (cents == 0L) {
+                        Text(
+                            text = "0.00",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.outline,
+                            textAlign = TextAlign.End,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    innerTextField()
+                }
             )
         }
     }

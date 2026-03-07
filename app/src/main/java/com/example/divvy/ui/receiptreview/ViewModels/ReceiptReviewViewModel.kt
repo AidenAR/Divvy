@@ -18,6 +18,8 @@ data class ReviewUiState(
     val merchant: String = "",
     val items: List<EditableReceiptItem> = emptyList(),
     val taxCents: Long = 0L,
+    val tipCents: Long = 0L,
+    val discountCents: Long = 0L,
     val editingItemId: String? = null,
     val geminiTotalCents: Long = 0L,
     val userHasEdited: Boolean = false,
@@ -25,12 +27,16 @@ data class ReviewUiState(
     val itemsTotalCents: Long get() = items.sumOf { it.priceCents }
     val totalCents: Long
         get() = if (!userHasEdited && geminiTotalCents > 0) geminiTotalCents
-                else itemsTotalCents + taxCents
+                else maxOf(0L, itemsTotalCents + taxCents + tipCents - discountCents)
 
     val formattedItemsTotal: String
         get() = "$${String.format("%.2f", itemsTotalCents / 100.0)}"
     val formattedTax: String
         get() = "$${String.format("%.2f", taxCents / 100.0)}"
+    val formattedTip: String
+        get() = "$${String.format("%.2f", tipCents / 100.0)}"
+    val formattedDiscount: String
+        get() = "-$${String.format("%.2f", discountCents / 100.0)}"
     val formattedTotal: String
         get() = "$${String.format("%.2f", totalCents / 100.0)}"
     val totalDollars: String
@@ -79,6 +85,8 @@ class ReceiptReviewViewModel @Inject constructor(
                     )
                 },
                 taxCents = receipt.taxCents,
+                tipCents = receipt.tipCents,
+                discountCents = receipt.discountCents,
                 geminiTotalCents = receipt.totalCents
             )
         }
@@ -156,6 +164,18 @@ class ReceiptReviewViewModel @Inject constructor(
         _uiState.update { it.copy(userHasEdited = true, taxCents = cents) }
     }
 
+    fun onTipChange(tipText: String) {
+        val filtered = tipText.filter { c -> c.isDigit() || c == '.' }
+        val cents = (filtered.toDoubleOrNull()?.times(100))?.toLong() ?: 0L
+        _uiState.update { it.copy(userHasEdited = true, tipCents = cents) }
+    }
+
+    fun onDiscountChange(discountText: String) {
+        val filtered = discountText.filter { c -> c.isDigit() || c == '.' }
+        val cents = (filtered.toDoubleOrNull()?.times(100))?.toLong() ?: 0L
+        _uiState.update { it.copy(userHasEdited = true, discountCents = cents) }
+    }
+
     fun onContinue() {
         val state = _uiState.value
         val updatedReceipt = ParsedReceipt(
@@ -164,6 +184,8 @@ class ReceiptReviewViewModel @Inject constructor(
                 ParsedReceiptItem(id = it.id, name = it.name, priceCents = it.priceCents)
             },
             taxCents = state.taxCents,
+            tipCents = state.tipCents,
+            discountCents = state.discountCents,
             totalCents = state.totalCents
         )
         scannedReceiptStore.store(updatedReceipt)
