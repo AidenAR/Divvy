@@ -120,7 +120,7 @@ fun BottomNavigationBar(navController: NavController) {
                 .shadow(4.dp, CircleShape)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.primary)
-                .clickable { /* Placeholder for receipt scan */ },
+                .clickable { navController.navigate(AppDestination.ScanReceipt) },
             contentAlignment = Alignment.Center
         ) {
             Image(

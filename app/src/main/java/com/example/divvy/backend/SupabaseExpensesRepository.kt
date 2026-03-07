@@ -3,6 +3,7 @@ package com.example.divvy.backend
 import com.example.divvy.models.Expense
 import com.example.divvy.models.ExpenseSplit
 import com.example.divvy.models.GroupExpense
+import com.example.divvy.models.ReceiptItemRow
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.postgrest
@@ -157,6 +158,11 @@ class SupabaseExpensesRepository @Inject constructor(
     override suspend fun deleteExpense(expenseId: String) {
         supabaseClient.from("expenses")
             .delete { filter { eq("id", expenseId) } }
+    }
+
+    override suspend fun saveReceiptItems(items: List<ReceiptItemRow>) {
+        if (items.isEmpty()) return
+        supabaseClient.from("receipt_items").insert(items)
     }
 
     override fun observeGroupExpenses(groupId: String): Flow<List<GroupExpense>> =

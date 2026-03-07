@@ -13,6 +13,8 @@ import com.example.divvy.backend.SupabaseBalanceRepository
 import com.example.divvy.backend.SupabaseExpensesRepository
 import com.example.divvy.backend.SupabaseGroupRepository
 import com.example.divvy.backend.SupabaseMemberRepository
+import com.example.divvy.backend.DefaultStatementRepository
+import com.example.divvy.backend.StatementRepository
 import com.example.divvy.backend.SupabaseProfilesRepository
 import dagger.Binds
 import dagger.Module
@@ -30,4 +32,5 @@ abstract class AppModule {
     @Binds @Singleton abstract fun bindExpensesRepository(impl: SupabaseExpensesRepository): ExpensesRepository
     @Binds @Singleton abstract fun bindProfilesRepository(impl: SupabaseProfilesRepository): ProfilesRepository
     @Binds @Singleton abstract fun bindActivityRepository(impl: SupabaseActivityRepository): ActivityRepository
+    @Binds @Singleton abstract fun bindStatementRepository(impl: DefaultStatementRepository): StatementRepository
 }

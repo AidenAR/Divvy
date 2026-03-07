@@ -19,6 +19,9 @@ sealed interface AppDestination {
     data object ScanReceipt : AppDestination
 
     @Serializable
+    data object ReceiptReview : AppDestination
+
+    @Serializable
     data class SplitExpense(
         val scannedAmount: String = "",
         val scannedDescription: String = "",
@@ -38,4 +41,10 @@ sealed interface AppDestination {
         val amountDisplay: String,
         val description: String
     ) : AppDestination
+
+    @Serializable
+    data object StatementUpload : AppDestination
+
+    @Serializable
+    data object TransactionReview : AppDestination
 }

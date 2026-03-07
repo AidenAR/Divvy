@@ -19,6 +19,7 @@ val localProperties = Properties().apply {
 val supabaseUrl = localProperties.getProperty("SUPABASE_URL", "")
 val supabaseAnonKey = localProperties.getProperty("SUPABASE_ANON_KEY", "")
 val authBypass = localProperties.getProperty("AUTH_BYPASS", "false").toBoolean()
+val geminiApiKey = localProperties.getProperty("GEMINI_API_KEY", "")
 
 android {
     namespace = "com.example.divvy"
@@ -42,6 +43,7 @@ android {
             buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
             buildConfigField("String", "SUPABASE_ANON_KEY", "\"$supabaseAnonKey\"")
             buildConfigField("Boolean", "AUTH_BYPASS", "$authBypass")
+            buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
         }
         release {
             isMinifyEnabled = false
@@ -91,11 +93,16 @@ dependencies {
     implementation(libs.supabase.postgrest.kt)
     implementation(libs.supabase.gotrue.kt)
     implementation(libs.ktor.client.android)
+    implementation(libs.ktor.client.content.negotiation)
+    implementation(libs.ktor.serialization.kotlinx.json)
+
+    implementation(libs.pdfbox.android)
 
     implementation(libs.androidx.camera.core)
     implementation(libs.androidx.camera.camera2)
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)
+    implementation(libs.androidx.exifinterface)
 
     implementation(libs.hilt.android)
     ksp(libs.hilt.android.compiler)

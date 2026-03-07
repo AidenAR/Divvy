@@ -28,6 +28,7 @@ import androidx.compose.material.icons.rounded.Group
 import androidx.compose.material.icons.rounded.Handshake
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.PersonAdd
+import androidx.compose.material.icons.rounded.FileUpload
 import androidx.compose.material.icons.rounded.Receipt
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -77,10 +78,11 @@ import com.example.divvy.ui.theme.PositiveGreen
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
-    onGroupClick: (String) -> Unit, // For navigating to a group from feed if needed
+    onGroupClick: (String) -> Unit,
     onGroupsClick: () -> Unit,
     onAddExpense: () -> Unit,
     onLedgerClick: () -> Unit,
+    onImportStatement: () -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -168,7 +170,12 @@ fun HomeScreen(
                             onClick = onAddExpense
                         )
                         QuickActionButton(
-                            icon = Icons.Rounded.Handshake, // Placeholder for Settle Up
+                            icon = Icons.Rounded.FileUpload,
+                            label = "Import",
+                            onClick = onImportStatement
+                        )
+                        QuickActionButton(
+                            icon = Icons.Rounded.Handshake,
                             label = "Settle Up",
                             onClick = { /* Placeholder */ }
                         )

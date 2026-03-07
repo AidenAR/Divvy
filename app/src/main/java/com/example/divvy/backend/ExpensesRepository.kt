@@ -3,6 +3,7 @@ package com.example.divvy.backend
 import com.example.divvy.models.Expense
 import com.example.divvy.models.ExpenseSplit
 import com.example.divvy.models.GroupExpense
+import com.example.divvy.models.ReceiptItemRow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
@@ -42,6 +43,7 @@ interface ExpensesRepository {
     ): Expense
     suspend fun updateExpenseSplits(expenseId: String, splits: List<ExpenseSplit>)
     suspend fun deleteExpense(expenseId: String)
+    suspend fun saveReceiptItems(items: List<ReceiptItemRow>)
 
     fun observeGroupExpenses(groupId: String): Flow<List<GroupExpense>>
     fun observeAllGroupExpenses(): Flow<List<GroupExpense>>
@@ -138,6 +140,8 @@ class StubExpensesRepository @Inject constructor() : ExpensesRepository {
         expenses.removeIf { it.id == expenseId }
         splits.remove(expenseId)
     }
+
+    override suspend fun saveReceiptItems(items: List<ReceiptItemRow>) { }
 
     override fun observeGroupExpenses(groupId: String): Flow<List<GroupExpense>> =
         _cache.map { it[groupId] ?: emptyList() }
