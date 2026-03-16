@@ -99,11 +99,6 @@ fun FriendsScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Friends") },
-                actions = {
-                    IconButton(onClick = { viewModel.onShowAddContactSheet() }) {
-                        Icon(Icons.Rounded.PersonAdd, contentDescription = "Add Contact")
-                    }
-                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background
                 )
@@ -169,12 +164,8 @@ fun FriendsScreen(
                             isSelected = false,
                             onClick = null,
                             trailingContent = {
-                                IconButton(onClick = { viewModel.onInviteContact(context, contact) }) {
-                                    Icon(
-                                        Icons.Rounded.Share,
-                                        contentDescription = "Invite",
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
+                                OutlinedButton(onClick = { viewModel.onInviteContact(context, contact) }) {
+                                    Text("Invite")
                                 }
                             }
                         )
