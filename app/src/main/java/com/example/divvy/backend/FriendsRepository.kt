@@ -21,6 +21,8 @@ interface FriendsRepository {
     suspend fun getFriendsWithGroups(): List<FriendWithGroups>
     suspend fun getProfileByPhone(phone: String): ProfileRow?
     suspend fun getProfileByEmail(email: String): ProfileRow?
+    suspend fun getProfilesByPhones(phones: List<String>): List<ProfileRow>
+    suspend fun getProfilesByEmails(emails: List<String>): List<ProfileRow>
 }
 
 @Serializable
@@ -84,5 +86,23 @@ class SupabaseFriendsRepository @Inject constructor(
                 limit(1)
             }
             .decodeSingleOrNull<ProfileRow>()
+    }
+
+    override suspend fun getProfilesByPhones(phones: List<String>): List<ProfileRow> {
+        if (phones.isEmpty()) return emptyList()
+        return supabaseClient.from("profiles")
+            .select {
+                filter { isIn("phone", phones) }
+            }
+            .decodeList<ProfileRow>()
+    }
+
+    override suspend fun getProfilesByEmails(emails: List<String>): List<ProfileRow> {
+        if (emails.isEmpty()) return emptyList()
+        return supabaseClient.from("profiles")
+            .select {
+                filter { isIn("email", emails) }
+            }
+            .decodeList<ProfileRow>()
     }
 }

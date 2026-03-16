@@ -35,14 +35,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.divvy.components.GroupIcon
 import com.example.divvy.models.Group
-import com.example.divvy.models.ProfileRow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddToGroupSheet(
     availableGroups: List<Group>,
     selectedGroupId: String?,
-    members: List<ProfileRow>,
+    members: List<ContactOnDivvy>,
     selectedMemberIds: Set<String>,
     memberSearchQuery: String,
     onGroupSelected: (String) -> Unit,
@@ -173,7 +172,7 @@ fun CreateGroupSheet(
     selectedIcon: GroupIcon,
     isCreating: Boolean,
     error: String?,
-    members: List<ProfileRow>,
+    members: List<ContactOnDivvy>,
     selectedMemberIds: Set<String>,
     memberSearchQuery: String,
     onNameChange: (String) -> Unit,
@@ -291,9 +290,170 @@ fun CreateGroupSheet(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun FriendsAddToGroupSheet(
+    availableGroups: List<Group>,
+    onGroupSelected: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 32.dp)
+        ) {
+            Text(
+                text = "Add to Group",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            if (availableGroups.isEmpty()) {
+                Text(
+                    text = "You don't have any groups yet.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+            } else {
+                LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {
+                    items(availableGroups, key = { it.id }) { group ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onGroupSelected(group.id) }
+                                .padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            com.example.divvy.components.GroupIcon(
+                                icon = group.icon,
+                                modifier = Modifier.size(24.dp),
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Text(
+                                text = group.name,
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun FriendsCreateGroupSheet(
+    name: String,
+    selectedIcon: GroupIcon,
+    isCreating: Boolean,
+    error: String?,
+    onNameChange: (String) -> Unit,
+    onIconSelected: (GroupIcon) -> Unit,
+    onSubmit: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 32.dp)
+        ) {
+            Text(
+                text = "Create Group",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            OutlinedTextField(
+                value = name,
+                onValueChange = onNameChange,
+                label = { Text("Group Name") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                singleLine = true
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            Text(
+                text = "Icon",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium
+            )
+
+            Spacer(Modifier.height(8.dp))
+
+            val icons = GroupIcon.entries
+            val chunked = icons.chunked(5)
+            chunked.forEach { row ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    row.forEach { icon ->
+                        val isSelected = icon == selectedIcon
+                        val tint = if (isSelected) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant
+                        IconButton(onClick = { onIconSelected(icon) }) {
+                            com.example.divvy.components.GroupIcon(
+                                icon = icon,
+                                modifier = Modifier.size(28.dp),
+                                tint = tint
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (error != null) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = error,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+
+            Spacer(Modifier.height(20.dp))
+
+            Button(
+                onClick = onSubmit,
+                enabled = name.isNotBlank() && !isCreating,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (isCreating) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                } else {
+                    Text("Create")
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun MemberPickerList(
-    members: List<ProfileRow>,
+    members: List<ContactOnDivvy>,
     selectedMemberIds: Set<String>,
     searchQuery: String,
     onSearchChange: (String) -> Unit,
@@ -302,7 +462,7 @@ fun MemberPickerList(
     OutlinedTextField(
         value = searchQuery,
         onValueChange = onSearchChange,
-        placeholder = { Text("Search users...") },
+        placeholder = { Text("Search contacts...") },
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         singleLine = true
@@ -311,7 +471,8 @@ fun MemberPickerList(
     Spacer(Modifier.height(8.dp))
 
     LazyColumn(modifier = Modifier.heightIn(max = 250.dp)) {
-        items(members, key = { it.id }) { profile ->
+        items(members, key = { it.profile.id }) { contact ->
+            val profile = contact.profile
             val name = "${profile.firstName} ${profile.lastName}".trim()
             val initials = profile.firstName.take(1) + profile.lastName.take(1)
             ContactRow(
@@ -319,7 +480,8 @@ fun MemberPickerList(
                 subtitle = profile.phone ?: profile.email,
                 initials = initials,
                 isSelected = profile.id in selectedMemberIds,
-                onClick = { onToggleMember(profile.id) }
+                onClick = { onToggleMember(profile.id) },
+                groupBadges = contact.sharedGroups.map { it.name }
             )
         }
     }

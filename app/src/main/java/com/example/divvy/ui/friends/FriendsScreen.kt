@@ -76,19 +76,30 @@ fun FriendsScreen(
 
     // Contacts permission
     val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) viewModel.onContactsPermissionGranted()
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val readGranted = permissions[Manifest.permission.READ_CONTACTS] == true
+        val writeGranted = permissions[Manifest.permission.WRITE_CONTACTS] == true
+        if (readGranted) viewModel.onContactsPermissionGranted()
+        if (writeGranted) viewModel.onWriteContactsPermissionGranted()
     }
 
     LaunchedEffect(Unit) {
-        val hasPermission = ContextCompat.checkSelfPermission(
+        val hasReadPermission = ContextCompat.checkSelfPermission(
             context, Manifest.permission.READ_CONTACTS
         ) == PackageManager.PERMISSION_GRANTED
-        if (hasPermission) {
-            viewModel.onContactsPermissionGranted()
-        } else {
-            permissionLauncher.launch(Manifest.permission.READ_CONTACTS)
+        val hasWritePermission = ContextCompat.checkSelfPermission(
+            context, Manifest.permission.WRITE_CONTACTS
+        ) == PackageManager.PERMISSION_GRANTED
+        if (hasReadPermission) viewModel.onContactsPermissionGranted()
+        if (hasWritePermission) viewModel.onWriteContactsPermissionGranted()
+        if (!hasReadPermission || !hasWritePermission) {
+            permissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.READ_CONTACTS,
+                    Manifest.permission.WRITE_CONTACTS
+                )
+            )
         }
     }
 
@@ -101,7 +112,7 @@ fun FriendsScreen(
                 title = { Text("Friends") },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background
-                )
+                ),
             )
         },
         containerColor = MaterialTheme.colorScheme.background
@@ -211,39 +222,21 @@ fun FriendsScreen(
     }
 
     if (uiState.showActionSheet) {
-        val sheetMembers = viewModel.sheetMemberList()
-        AddToGroupSheet(
+        FriendsAddToGroupSheet(
             availableGroups = uiState.availableGroups,
-            selectedGroupId = uiState.actionSheetGroupId,
-            members = sheetMembers,
-            selectedMemberIds = uiState.selectedMemberIds,
-            memberSearchQuery = uiState.memberSearchQuery,
-            onGroupSelected = { id ->
-                if (id.isEmpty()) viewModel.onSelectGroupForAdding("")
-                else viewModel.onSelectGroupForAdding(id)
-            },
-            onMemberSearchChange = viewModel::onMemberSearchChange,
-            onToggleMember = viewModel::onToggleMemberSelection,
-            onConfirm = viewModel::onAddToExistingGroup,
-            onCreateNewGroup = viewModel::onShowCreateGroupSheet,
+            onGroupSelected = viewModel::onAddSelectedFriendsToGroup,
             onDismiss = viewModel::onDismissActionSheet
         )
     }
 
     if (uiState.showCreateGroupSheet) {
-        val sheetMembers = viewModel.sheetMemberList()
-        CreateGroupSheet(
+        FriendsCreateGroupSheet(
             name = uiState.createGroupName,
             selectedIcon = uiState.createGroupIcon,
             isCreating = uiState.isCreatingGroup,
             error = uiState.createGroupError,
-            members = sheetMembers,
-            selectedMemberIds = uiState.selectedMemberIds,
-            memberSearchQuery = uiState.memberSearchQuery,
             onNameChange = viewModel::onCreateGroupNameChange,
             onIconSelected = viewModel::onCreateGroupIconSelected,
-            onMemberSearchChange = viewModel::onMemberSearchChange,
-            onToggleMember = viewModel::onToggleMemberSelection,
             onSubmit = viewModel::submitCreateGroup,
             onDismiss = viewModel::onDismissCreateGroupSheet
         )

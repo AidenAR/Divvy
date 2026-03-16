@@ -9,7 +9,6 @@ import com.example.divvy.backend.ContactsRepository
 import com.example.divvy.backend.FriendsRepository
 import com.example.divvy.backend.GroupRepository
 import com.example.divvy.backend.MemberRepository
-import com.example.divvy.backend.ProfilesRepository
 import com.example.divvy.backend.DataResult
 import com.example.divvy.components.GroupIcon
 import com.example.divvy.models.ContactEntry
@@ -24,12 +23,18 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+data class ContactOnDivvy(
+    val profile: ProfileRow,
+    val sharedGroups: List<Group> = emptyList()
+)
+
 data class FriendsUiState(
     val friends: List<ContactEntry.DivvyFriend> = emptyList(),
     val deviceContacts: List<ContactEntry.DeviceContact> = emptyList(),
     val searchQuery: String = "",
     val selectedKeys: Set<String> = emptySet(),
     val hasContactsPermission: Boolean = false,
+    val hasWriteContactsPermission: Boolean = false,
     val isLoading: Boolean = false,
     // Add contact sheet
     val showAddContactSheet: Boolean = false,
@@ -52,7 +57,7 @@ data class FriendsUiState(
     // Member picker (shared by add-to-group and create-group sheets)
     val memberSearchQuery: String = "",
     val selectedMemberIds: Set<String> = emptySet(),
-    val allProfiles: List<ProfileRow> = emptyList(),
+    val contactsOnDivvy: List<ContactOnDivvy> = emptyList(),
     val isLoadingProfiles: Boolean = false,
     // All user groups (for computing available groups)
     val allGroups: List<Group> = emptyList()
@@ -64,7 +69,6 @@ class FriendsViewModel @Inject constructor(
     private val contactsRepository: ContactsRepository,
     private val groupRepository: GroupRepository,
     private val memberRepository: MemberRepository,
-    private val profilesRepository: ProfilesRepository,
     private val authRepository: AuthRepository
 ) : ViewModel() {
 
@@ -87,9 +91,9 @@ class FriendsViewModel @Inject constructor(
                     ContactEntry.DivvyFriend(profile = fwg.profile, sharedGroups = fwg.sharedGroups)
                 }.sortedBy { it.displayName.lowercase() }
                 _uiState.update { it.copy(friends = friends, isLoading = false) }
-                // Re-filter device contacts if we have them
                 if (_uiState.value.hasContactsPermission) {
                     loadDeviceContacts()
+                    mergeContactsOnDivvy()
                 }
             }.onFailure {
                 _uiState.update { it.copy(isLoading = false) }
@@ -110,6 +114,11 @@ class FriendsViewModel @Inject constructor(
     fun onContactsPermissionGranted() {
         _uiState.update { it.copy(hasContactsPermission = true) }
         loadDeviceContacts()
+        mergeContactsOnDivvy()
+    }
+
+    fun onWriteContactsPermissionGranted() {
+        _uiState.update { it.copy(hasWriteContactsPermission = true) }
     }
 
     private fun loadDeviceContacts() {
@@ -137,6 +146,28 @@ class FriendsViewModel @Inject constructor(
                     phoneEntries + emailEntries
                 }
                 _uiState.update { it.copy(deviceContacts = deviceEntries.sortedBy { c -> c.displayName.lowercase() }) }
+            }
+        }
+    }
+
+    private fun mergeContactsOnDivvy() {
+        viewModelScope.launch {
+            runCatching {
+                val rawContacts = contactsRepository.getDeviceContacts()
+                val allPhones = rawContacts.flatMap { it.phones }.map { it.normalizePhone() }.filter { it.isNotBlank() }.distinct()
+                val allEmails = rawContacts.flatMap { it.emails }.map { it.lowercase() }.filter { it.isNotBlank() }.distinct()
+                val phoneProfiles = friendsRepository.getProfilesByPhones(allPhones)
+                val emailProfiles = friendsRepository.getProfilesByEmails(allEmails)
+                (phoneProfiles + emailProfiles).distinctBy { it.id }.filter { it.id != currentUserId }
+            }.onSuccess { contactProfiles ->
+                _uiState.update { state ->
+                    val existingIds = state.friends.map { it.profile.id }.toSet()
+                    val newFriends = contactProfiles
+                        .filter { it.id !in existingIds }
+                        .map { ContactEntry.DivvyFriend(profile = it, sharedGroups = emptyList()) }
+                    val merged = (state.friends + newFriends).sortedBy { it.displayName.lowercase() }
+                    state.copy(friends = merged)
+                }
             }
         }
     }
@@ -187,13 +218,15 @@ class FriendsViewModel @Inject constructor(
 
             _uiState.update { it.copy(isAddingContact = true) }
 
-            // Save to device contacts
-            runCatching {
-                contactsRepository.addDeviceContact(
-                    name = name,
-                    phone = state.addContactPhone.takeIf { it.isNotBlank() },
-                    email = state.addContactEmail.takeIf { it.isNotBlank() }
-                )
+            // Save to device contacts (only if write permission is granted)
+            if (state.hasWriteContactsPermission) {
+                runCatching {
+                    contactsRepository.addDeviceContact(
+                        name = name,
+                        phone = state.addContactPhone.takeIf { it.isNotBlank() },
+                        email = state.addContactEmail.takeIf { it.isNotBlank() }
+                    )
+                }
             }
 
             // Check if already on Divvy
@@ -238,15 +271,46 @@ class FriendsViewModel @Inject constructor(
     }
 
     // Member picker (shared by add-to-group and create-group sheets)
-    private fun loadAllProfiles() {
+    private fun loadContactsOnDivvy() {
         _uiState.update { it.copy(isLoadingProfiles = true) }
         viewModelScope.launch {
-            val profiles = runCatching { profilesRepository.listAllProfiles() }.getOrDefault(emptyList())
-            _uiState.update {
-                it.copy(
-                    allProfiles = profiles.filter { p -> p.id != currentUserId },
-                    isLoadingProfiles = false
-                )
+            runCatching {
+                val rawContacts = contactsRepository.getDeviceContacts()
+
+                val allPhones = rawContacts
+                    .flatMap { it.phones }
+                    .map { it.normalizePhone() }
+                    .filter { it.isNotBlank() }
+                    .distinct()
+                val allEmails = rawContacts
+                    .flatMap { it.emails }
+                    .map { it.lowercase() }
+                    .filter { it.isNotBlank() }
+                    .distinct()
+
+                val phoneProfiles = friendsRepository.getProfilesByPhones(allPhones)
+                val emailProfiles = friendsRepository.getProfilesByEmails(allEmails)
+
+                val profileMap = (phoneProfiles + emailProfiles)
+                    .distinctBy { it.id }
+                    .filter { it.id != currentUserId }
+                    .associateBy { it.id }
+
+                val friendGroupsMap = _uiState.value.friends
+                    .associate { it.profile.id to it.sharedGroups }
+
+                profileMap.values.map { profile ->
+                    ContactOnDivvy(
+                        profile = profile,
+                        sharedGroups = friendGroupsMap[profile.id] ?: emptyList()
+                    )
+                }
+            }.onSuccess { contacts ->
+                _uiState.update {
+                    it.copy(contactsOnDivvy = contacts, isLoadingProfiles = false)
+                }
+            }.onFailure {
+                _uiState.update { it.copy(isLoadingProfiles = false) }
             }
         }
     }
@@ -263,58 +327,48 @@ class FriendsViewModel @Inject constructor(
         }
     }
 
-    fun sheetMemberList(): List<ProfileRow> {
+    fun sheetMemberList(): List<ContactOnDivvy> {
         val state = _uiState.value
         val query = state.memberSearchQuery.lowercase()
-        val friendIds = state.friends.map { it.profile.id }.toSet()
 
+        val base = state.contactsOnDivvy
         return if (query.isBlank()) {
-            // Show friends only
-            state.friends.map { it.profile }
+            base
         } else {
-            // Search all profiles
-            state.allProfiles.filter { profile ->
-                val name = "${profile.firstName} ${profile.lastName}".lowercase()
-                val email = profile.email?.lowercase() ?: ""
-                val phone = profile.phone ?: ""
+            base.filter { contact ->
+                val name = "${contact.profile.firstName} ${contact.profile.lastName}".lowercase()
+                val email = contact.profile.email?.lowercase() ?: ""
+                val phone = contact.profile.phone ?: ""
                 name.contains(query) || email.contains(query) || phone.contains(query)
             }
-        }.sortedBy { "${it.firstName} ${it.lastName}".lowercase() }
+        }.sortedBy { "${it.profile.firstName} ${it.profile.lastName}".lowercase() }
     }
 
     // Add to Group
     fun onShowAddToGroupSheet() {
-        val available = _uiState.value.allGroups
         _uiState.update {
             it.copy(
                 showActionSheet = true,
-                actionSheetGroupId = null,
-                availableGroups = available,
-                memberSearchQuery = "",
-                selectedMemberIds = emptySet()
+                availableGroups = it.allGroups
             )
         }
-        loadAllProfiles()
     }
 
     fun onDismissActionSheet() {
         _uiState.update { it.copy(showActionSheet = false, actionSheetGroupId = null) }
     }
 
-    fun onSelectGroupForAdding(groupId: String) {
-        _uiState.update { it.copy(actionSheetGroupId = groupId.ifEmpty { null }) }
-    }
-
-    fun onAddToExistingGroup() {
+    fun onAddSelectedFriendsToGroup(groupId: String) {
         viewModelScope.launch {
-            val state = _uiState.value
-            val groupId = state.actionSheetGroupId ?: return@launch
+            val userIds = _uiState.value.selectedKeys
+                .filter { it.startsWith("divvy_") }
+                .map { it.removePrefix("divvy_") }
 
-            state.selectedMemberIds.forEach { userId ->
+            userIds.forEach { userId ->
                 runCatching { memberRepository.addMember(groupId, userId) }
             }
 
-            _uiState.update { it.copy(showActionSheet = false, actionSheetGroupId = null, selectedKeys = emptySet()) }
+            _uiState.update { it.copy(showActionSheet = false, selectedKeys = emptySet()) }
             loadFriends()
         }
     }
@@ -328,12 +382,9 @@ class FriendsViewModel @Inject constructor(
                 createGroupName = "",
                 createGroupIcon = GroupIcon.Group,
                 createGroupError = null,
-                isCreatingGroup = false,
-                memberSearchQuery = "",
-                selectedMemberIds = emptySet()
+                isCreatingGroup = false
             )
         }
-        loadAllProfiles()
     }
 
     fun onDismissCreateGroupSheet() {
@@ -354,11 +405,14 @@ class FriendsViewModel @Inject constructor(
 
             _uiState.update { it.copy(isCreatingGroup = true, createGroupError = null) }
 
+            val userIds = state.selectedKeys
+                .filter { it.startsWith("divvy_") }
+                .map { it.removePrefix("divvy_") }
+
             runCatching {
                 val group = groupRepository.createGroup(name, state.createGroupIcon)
 
-                // Add selected members
-                state.selectedMemberIds.forEach { userId ->
+                userIds.forEach { userId ->
                     runCatching { memberRepository.addMember(group.id, userId) }
                 }
 
