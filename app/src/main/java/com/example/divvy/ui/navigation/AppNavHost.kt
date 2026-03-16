@@ -59,7 +59,11 @@ fun AppNavHost(
             )
         }
         composable<AppDestination.Friends> {
-            FriendsScreen()
+            FriendsScreen(
+                onCreatedGroupNavigate = { id ->
+                    navController.navigate(AppDestination.GroupDetail(id))
+                }
+            )
         }
         composable<AppDestination.Analytics> {
             AnalyticsScreen(
