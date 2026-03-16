@@ -9,6 +9,7 @@ import com.example.divvy.backend.ContactsRepository
 import com.example.divvy.backend.FriendsRepository
 import com.example.divvy.backend.GroupRepository
 import com.example.divvy.backend.MemberRepository
+import com.example.divvy.backend.ProfilesRepository
 import com.example.divvy.backend.DataResult
 import com.example.divvy.components.GroupIcon
 import com.example.divvy.models.ContactEntry
@@ -39,6 +40,7 @@ data class FriendsUiState(
     val isAddingContact: Boolean = false,
     // Action sheet (add to group)
     val showActionSheet: Boolean = false,
+    val actionSheetGroupId: String? = null,
     val availableGroups: List<Group> = emptyList(),
     // Create group sheet
     val showCreateGroupSheet: Boolean = false,
@@ -47,6 +49,11 @@ data class FriendsUiState(
     val isCreatingGroup: Boolean = false,
     val createGroupError: String? = null,
     val createdGroupId: String? = null,
+    // Member picker (shared by add-to-group and create-group sheets)
+    val memberSearchQuery: String = "",
+    val selectedMemberIds: Set<String> = emptySet(),
+    val allProfiles: List<ProfileRow> = emptyList(),
+    val isLoadingProfiles: Boolean = false,
     // All user groups (for computing available groups)
     val allGroups: List<Group> = emptyList()
 )
@@ -57,11 +64,13 @@ class FriendsViewModel @Inject constructor(
     private val contactsRepository: ContactsRepository,
     private val groupRepository: GroupRepository,
     private val memberRepository: MemberRepository,
+    private val profilesRepository: ProfilesRepository,
     private val authRepository: AuthRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(FriendsUiState(isLoading = true))
     val uiState: StateFlow<FriendsUiState> = _uiState.asStateFlow()
+    private val currentUserId: String = authRepository.getCurrentUserId()
 
     init {
         loadFriends()
@@ -228,41 +237,84 @@ class FriendsViewModel @Inject constructor(
         context.startActivity(Intent.createChooser(sendIntent, "Invite to Divvy"))
     }
 
+    // Member picker (shared by add-to-group and create-group sheets)
+    private fun loadAllProfiles() {
+        _uiState.update { it.copy(isLoadingProfiles = true) }
+        viewModelScope.launch {
+            val profiles = runCatching { profilesRepository.listAllProfiles() }.getOrDefault(emptyList())
+            _uiState.update {
+                it.copy(
+                    allProfiles = profiles.filter { p -> p.id != currentUserId },
+                    isLoadingProfiles = false
+                )
+            }
+        }
+    }
+
+    fun onMemberSearchChange(query: String) {
+        _uiState.update { it.copy(memberSearchQuery = query) }
+    }
+
+    fun onToggleMemberSelection(profileId: String) {
+        _uiState.update { current ->
+            val next = current.selectedMemberIds.toMutableSet()
+            if (next.contains(profileId)) next.remove(profileId) else next.add(profileId)
+            current.copy(selectedMemberIds = next)
+        }
+    }
+
+    fun sheetMemberList(): List<ProfileRow> {
+        val state = _uiState.value
+        val query = state.memberSearchQuery.lowercase()
+        val friendIds = state.friends.map { it.profile.id }.toSet()
+
+        return if (query.isBlank()) {
+            // Show friends only
+            state.friends.map { it.profile }
+        } else {
+            // Search all profiles
+            state.allProfiles.filter { profile ->
+                val name = "${profile.firstName} ${profile.lastName}".lowercase()
+                val email = profile.email?.lowercase() ?: ""
+                val phone = profile.phone ?: ""
+                name.contains(query) || email.contains(query) || phone.contains(query)
+            }
+        }.sortedBy { "${it.firstName} ${it.lastName}".lowercase() }
+    }
+
     // Add to Group
     fun onShowAddToGroupSheet() {
-        val state = _uiState.value
-        val selectedFriendIds = state.friends
-            .filter { it.selectionKey in state.selectedKeys }
-            .map { it.profile.id }
-            .toSet()
-
-        // Groups user is in, minus groups all selected friends are already in
-        val available = state.allGroups.filter { group ->
-            // This group is available if at least one selected friend is NOT in it
-            val groupFriendIds = state.friends
-                .filter { friend -> friend.sharedGroups.any { it.id == group.id } }
-                .map { it.profile.id }
-                .toSet()
-            selectedFriendIds.any { it !in groupFriendIds }
+        val available = _uiState.value.allGroups
+        _uiState.update {
+            it.copy(
+                showActionSheet = true,
+                actionSheetGroupId = null,
+                availableGroups = available,
+                memberSearchQuery = "",
+                selectedMemberIds = emptySet()
+            )
         }
-
-        _uiState.update { it.copy(showActionSheet = true, availableGroups = available) }
+        loadAllProfiles()
     }
 
     fun onDismissActionSheet() {
-        _uiState.update { it.copy(showActionSheet = false) }
+        _uiState.update { it.copy(showActionSheet = false, actionSheetGroupId = null) }
     }
 
-    fun onAddToExistingGroup(groupId: String) {
-        viewModelScope.launch {
-            val selectedFriends = _uiState.value.friends
-                .filter { it.selectionKey in _uiState.value.selectedKeys }
+    fun onSelectGroupForAdding(groupId: String) {
+        _uiState.update { it.copy(actionSheetGroupId = groupId.ifEmpty { null }) }
+    }
 
-            selectedFriends.forEach { friend ->
-                runCatching { memberRepository.addMember(groupId, friend.profile.id) }
+    fun onAddToExistingGroup() {
+        viewModelScope.launch {
+            val state = _uiState.value
+            val groupId = state.actionSheetGroupId ?: return@launch
+
+            state.selectedMemberIds.forEach { userId ->
+                runCatching { memberRepository.addMember(groupId, userId) }
             }
 
-            _uiState.update { it.copy(showActionSheet = false, selectedKeys = emptySet()) }
+            _uiState.update { it.copy(showActionSheet = false, actionSheetGroupId = null, selectedKeys = emptySet()) }
             loadFriends()
         }
     }
@@ -276,9 +328,12 @@ class FriendsViewModel @Inject constructor(
                 createGroupName = "",
                 createGroupIcon = GroupIcon.Group,
                 createGroupError = null,
-                isCreatingGroup = false
+                isCreatingGroup = false,
+                memberSearchQuery = "",
+                selectedMemberIds = emptySet()
             )
         }
+        loadAllProfiles()
     }
 
     fun onDismissCreateGroupSheet() {
@@ -302,11 +357,9 @@ class FriendsViewModel @Inject constructor(
             runCatching {
                 val group = groupRepository.createGroup(name, state.createGroupIcon)
 
-                // Add selected friends as members
-                val selectedFriends = state.friends
-                    .filter { it.selectionKey in state.selectedKeys }
-                selectedFriends.forEach { friend ->
-                    runCatching { memberRepository.addMember(group.id, friend.profile.id) }
+                // Add selected members
+                state.selectedMemberIds.forEach { userId ->
+                    runCatching { memberRepository.addMember(group.id, userId) }
                 }
 
                 groupRepository.refreshGroups()

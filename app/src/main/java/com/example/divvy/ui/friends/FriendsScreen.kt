@@ -211,22 +211,39 @@ fun FriendsScreen(
     }
 
     if (uiState.showActionSheet) {
+        val sheetMembers = viewModel.sheetMemberList()
         AddToGroupSheet(
             availableGroups = uiState.availableGroups,
-            onGroupSelected = viewModel::onAddToExistingGroup,
+            selectedGroupId = uiState.actionSheetGroupId,
+            members = sheetMembers,
+            selectedMemberIds = uiState.selectedMemberIds,
+            memberSearchQuery = uiState.memberSearchQuery,
+            onGroupSelected = { id ->
+                if (id.isEmpty()) viewModel.onSelectGroupForAdding("")
+                else viewModel.onSelectGroupForAdding(id)
+            },
+            onMemberSearchChange = viewModel::onMemberSearchChange,
+            onToggleMember = viewModel::onToggleMemberSelection,
+            onConfirm = viewModel::onAddToExistingGroup,
             onCreateNewGroup = viewModel::onShowCreateGroupSheet,
             onDismiss = viewModel::onDismissActionSheet
         )
     }
 
     if (uiState.showCreateGroupSheet) {
+        val sheetMembers = viewModel.sheetMemberList()
         CreateGroupSheet(
             name = uiState.createGroupName,
             selectedIcon = uiState.createGroupIcon,
             isCreating = uiState.isCreatingGroup,
             error = uiState.createGroupError,
+            members = sheetMembers,
+            selectedMemberIds = uiState.selectedMemberIds,
+            memberSearchQuery = uiState.memberSearchQuery,
             onNameChange = viewModel::onCreateGroupNameChange,
             onIconSelected = viewModel::onCreateGroupIconSelected,
+            onMemberSearchChange = viewModel::onMemberSearchChange,
+            onToggleMember = viewModel::onToggleMemberSelection,
             onSubmit = viewModel::submitCreateGroup,
             onDismiss = viewModel::onDismissCreateGroupSheet
         )
