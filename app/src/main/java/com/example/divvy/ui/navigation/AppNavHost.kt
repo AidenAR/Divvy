@@ -62,6 +62,9 @@ fun AppNavHost(
             FriendsScreen(
                 onCreatedGroupNavigate = { id ->
                     navController.navigate(AppDestination.GroupDetail(id))
+                },
+                onAddExpenseNavigate = { groupId ->
+                    navController.navigate(AppDestination.SplitExpense(preselectedGroupId = groupId))
                 }
             )
         }
