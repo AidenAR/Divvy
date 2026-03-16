@@ -227,10 +227,22 @@ class GroupDetailViewModel @AssistedInject constructor(
             .sortedByDescending { it.createdAt }
             .map { expense ->
                 val paidByCurrentUser = expense.paidByUserId == myUserId
+
+                // RATIONALE: The activity feed should show YOUR share of the expense if someone else paid,
+                // or the TOTAL amount if you paid (showing what's owed to you).
+                val displayAmountCents = if (paidByCurrentUser) {
+                    // Show the amount others owe you (Total - Your Share)
+                    val myShare = expense.splits.find { it.userId == myUserId }?.amountCents ?: 0L
+                    expense.amountCents - myShare
+                } else {
+                    // Show the amount you specifically owe for this expense
+                    expense.splits.find { it.userId == myUserId }?.amountCents ?: 0L
+                }
+
                 ActivityItem(
                     id = expense.id,
                     title = expense.title,
-                    amountCents = expense.amountCents,
+                    amountCents = displayAmountCents,
                     dateLabel = dateLabel(expense.createdAt),
                     paidByLabel = if (paidByCurrentUser) "You"
                     else memberMap[expense.paidByUserId]?.name ?: "Unknown",

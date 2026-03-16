@@ -21,7 +21,8 @@ interface ExpensesRepository {
         groupId: String,
         description: String,
         amountCents: Long,
-        splitMethod: String
+        splitMethod: String,
+        paidByUserId: String
     ): Expense
     suspend fun createExpenseWithSplits(
         groupId: String,
@@ -29,6 +30,7 @@ interface ExpensesRepository {
         amountCents: Long,
         currency: String,
         splitMethod: String,
+        paidByUserId: String,
         splits: List<ExpenseSplit>
     ): GroupExpense
     suspend fun getExpenseById(expenseId: String): Expense?
@@ -70,7 +72,8 @@ class StubExpensesRepository @Inject constructor() : ExpensesRepository {
         groupId: String,
         description: String,
         amountCents: Long,
-        splitMethod: String
+        splitMethod: String,
+        paidByUserId: String
     ): Expense {
         val expense = Expense(
             id = UUID.randomUUID().toString(),
@@ -79,7 +82,7 @@ class StubExpensesRepository @Inject constructor() : ExpensesRepository {
             amountCents = amountCents,
             splitMethod = splitMethod,
             currency = "USD",
-            paidByUserId = "stub_user",
+            paidByUserId = paidByUserId,
             createdAt = Clock.System.now().toString()
         )
         expenses.add(expense)
@@ -92,9 +95,10 @@ class StubExpensesRepository @Inject constructor() : ExpensesRepository {
         amountCents: Long,
         currency: String,
         splitMethod: String,
+        paidByUserId: String,
         splits: List<ExpenseSplit>
     ): GroupExpense {
-        val expense = createExpense(groupId, description, amountCents, splitMethod)
+        val expense = createExpense(groupId, description, amountCents, splitMethod, paidByUserId)
         this.splits[expense.id] = splits
         val groupExpense = expense.toGroupExpense()
         _cache.update { map ->

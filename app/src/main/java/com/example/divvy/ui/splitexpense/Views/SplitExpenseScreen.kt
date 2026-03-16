@@ -73,8 +73,8 @@ import com.example.divvy.ui.theme.DmSansFamily
 fun SplitExpenseScreen(
     viewModel: SplitExpenseViewModel = hiltViewModel(),
     onBack: () -> Unit,
-    onNavigateToAssignItems: (groupId: String, amount: String, description: String) -> Unit = { _, _, _ -> },
-    onNavigateToSplitByPercentage: (groupId: String, amount: String, description: String) -> Unit = { _, _, _ -> }
+    onNavigateToAssignItems: (groupId: String, amount: String, description: String, paidByUserId: String) -> Unit = { _, _, _, _ -> },
+    onNavigateToSplitByPercentage: (groupId: String, amount: String, description: String, paidByUserId: String) -> Unit = { _, _, _, _ -> }
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -83,9 +83,9 @@ fun SplitExpenseScreen(
             when (event) {
                 is SplitExpenseViewModel.SplitEvent.Created -> onBack()
                 is SplitExpenseViewModel.SplitEvent.GoToAssignItems ->
-                    onNavigateToAssignItems(event.groupId, event.amount, event.description)
+                    onNavigateToAssignItems(event.groupId, event.amount, event.description, event.paidByUserId)
                 is SplitExpenseViewModel.SplitEvent.GoToSplitByPercentage ->
-                    onNavigateToSplitByPercentage(event.groupId, event.amount, event.description)
+                    onNavigateToSplitByPercentage(event.groupId, event.amount, event.description, event.paidByUserId)
             }
         }
     }

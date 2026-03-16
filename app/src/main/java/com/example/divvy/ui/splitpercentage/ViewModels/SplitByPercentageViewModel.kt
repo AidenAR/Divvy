@@ -34,6 +34,7 @@ data class SplitByPercentageUiState(
     val amountDisplay: String = "",
     val members: List<PercentageMember> = emptyList(),
     val percentages: Map<String, String> = emptyMap(),
+    val paidByUserId: String = "",
     val isLoading: Boolean = false,
     val isSaving: Boolean = false
 ) {
@@ -64,6 +65,7 @@ class SplitByPercentageViewModel @AssistedInject constructor(
     @Assisted("groupId") private val groupId: String,
     @Assisted("amountDisplay") private val amountDisplay: String,
     @Assisted("description") private val description: String,
+    @Assisted("paidByUserId") private val paidByUserId: String,
     private val authRepository: AuthRepository,
     private val memberRepository: MemberRepository,
     private val expensesRepository: ExpensesRepository,
@@ -77,7 +79,8 @@ class SplitByPercentageViewModel @AssistedInject constructor(
         fun create(
             @Assisted("groupId") groupId: String,
             @Assisted("amountDisplay") amountDisplay: String,
-            @Assisted("description") description: String
+            @Assisted("description") description: String,
+            @Assisted("paidByUserId") paidByUserId: String
         ): SplitByPercentageViewModel
     }
 
@@ -85,6 +88,7 @@ class SplitByPercentageViewModel @AssistedInject constructor(
         SplitByPercentageUiState(
             description = description.ifBlank { "Expense" },
             amountDisplay = amountDisplay,
+            paidByUserId = paidByUserId,
             isLoading = true
         )
     )
@@ -150,6 +154,7 @@ class SplitByPercentageViewModel @AssistedInject constructor(
                 amountCents = amountCents,
                 currency = "USD",
                 splitMethod = "PERCENTAGE",
+                paidByUserId = state.paidByUserId,
                 splits = splits
             )
             balanceRepository.refreshBalances(groupId)

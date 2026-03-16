@@ -122,14 +122,14 @@ fun AppNavHost(
         composable<AppDestination.SplitExpense> {
             SplitExpenseScreen(
                 onBack = { navController.popBackStack() },
-                onNavigateToAssignItems = { groupId, amount, description ->
+                onNavigateToAssignItems = { groupId, amount, description, paidByUserId ->
                     navController.navigate(
-                        AppDestination.AssignItems(groupId, amount, description)
+                        AppDestination.AssignItems(groupId, amount, description, paidByUserId)
                     )
                 },
-                onNavigateToSplitByPercentage = { groupId, amount, description ->
+                onNavigateToSplitByPercentage = { groupId, amount, description, paidByUserId ->
                     navController.navigate(
-                        AppDestination.SplitByPercentage(groupId, amount, description)
+                        AppDestination.SplitByPercentage(groupId, amount, description, paidByUserId)
                     )
                 }
             )
@@ -140,7 +140,7 @@ fun AppNavHost(
                 SplitByPercentageViewModel, SplitByPercentageViewModel.Factory
             >(
                 creationCallback = { factory ->
-                    factory.create(dest.groupId, dest.amountDisplay, dest.description)
+                    factory.create(dest.groupId, dest.amountDisplay, dest.description, dest.paidByUserId)
                 }
             )
             SplitByPercentageScreen(
@@ -160,7 +160,7 @@ fun AppNavHost(
                 AssignItemsViewModel, AssignItemsViewModel.Factory
             >(
                 creationCallback = { factory ->
-                    factory.create(dest.groupId, dest.amountDisplay, dest.description)
+                    factory.create(dest.groupId, dest.amountDisplay, dest.description, dest.paidByUserId)
                 }
             )
             AssignItemsScreen(
