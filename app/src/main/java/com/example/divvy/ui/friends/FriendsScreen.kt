@@ -5,7 +5,9 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -156,7 +158,8 @@ fun FriendsScreen(
                             subtitle = null,
                             initials = friend.profile.firstName.take(1) + friend.profile.lastName.take(1),
                             isSelected = friend.selectionKey in uiState.selectedKeys,
-                            onClick = { viewModel.onToggleSelection(friend.selectionKey) },
+                            onClick = null,
+                            onLongClick = { viewModel.onToggleSelection(friend.selectionKey) },
                             groupBadges = friend.sharedGroups.map { it.name }
                         )
                     }
@@ -292,7 +295,7 @@ private fun SelectionActionBar(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun ContactRow(
     name: String,
@@ -300,13 +303,23 @@ fun ContactRow(
     initials: String,
     isSelected: Boolean,
     onClick: (() -> Unit)?,
+    onLongClick: (() -> Unit)? = null,
     groupBadges: List<String> = emptyList(),
     trailingContent: @Composable (() -> Unit)? = null
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
+            .then(
+                when {
+                    onLongClick != null -> Modifier.combinedClickable(
+                        onLongClick = onLongClick,
+                        onClick = { onClick?.invoke() }
+                    )
+                    onClick != null -> Modifier.clickable { onClick() }
+                    else -> Modifier
+                }
+            )
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
