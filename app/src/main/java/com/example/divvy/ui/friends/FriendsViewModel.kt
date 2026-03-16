@@ -191,6 +191,7 @@ class FriendsViewModel @Inject constructor(
         _uiState.update { it.copy(selectedKeys = emptySet()) }
     }
 
+    // Add Contact Sheet
     fun onShowAddContactSheet() {
         _uiState.update {
             it.copy(
@@ -217,7 +218,10 @@ class FriendsViewModel @Inject constructor(
             val state = _uiState.value
             val name = state.addContactName.trim()
             if (name.isBlank()) return@launch
+
             _uiState.update { it.copy(isAddingContact = true) }
+
+            // Save to device contacts (only if write permission is granted)
             if (state.hasWriteContactsPermission) {
                 runCatching {
                     contactsRepository.addDeviceContact(
@@ -227,19 +231,40 @@ class FriendsViewModel @Inject constructor(
                     )
                 }
             }
+
+            // Check if already on Divvy
             var matchedProfile: ProfileRow? = null
             if (state.addContactPhone.isNotBlank()) {
-                matchedProfile = runCatching { friendsRepository.getProfileByPhone(state.addContactPhone.trim()) }.getOrNull()
+                matchedProfile = runCatching {
+                    friendsRepository.getProfileByPhone(state.addContactPhone.trim())
+                }.getOrNull()
             }
             if (matchedProfile == null && state.addContactEmail.isNotBlank()) {
-                matchedProfile = runCatching { friendsRepository.getProfileByEmail(state.addContactEmail.trim()) }.getOrNull()
+                matchedProfile = runCatching {
+                    friendsRepository.getProfileByEmail(state.addContactEmail.trim())
+                }.getOrNull()
             }
-            _uiState.update { it.copy(isAddingContact = false, addContactMatchedProfile = matchedProfile) }
-            if (_uiState.value.hasContactsPermission) loadDeviceContacts()
-            if (matchedProfile == null) _uiState.update { it.copy(showAddContactSheet = false) }
+
+            _uiState.update {
+                it.copy(
+                    isAddingContact = false,
+                    addContactMatchedProfile = matchedProfile
+                )
+            }
+
+            // Reload contacts if permission granted
+            if (_uiState.value.hasContactsPermission) {
+                loadDeviceContacts()
+            }
+
+            // If no match, close sheet after save
+            if (matchedProfile == null) {
+                _uiState.update { it.copy(showAddContactSheet = false) }
+            }
         }
     }
 
+    // Invite (share intent)
     fun onInviteContact(context: Context, contact: ContactEntry.DeviceContact) {
         val sendIntent = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
@@ -248,8 +273,88 @@ class FriendsViewModel @Inject constructor(
         context.startActivity(Intent.createChooser(sendIntent, "Invite to Divvy"))
     }
 
+    // Member picker (shared by add-to-group and create-group sheets)
+    private fun loadContactsOnDivvy() {
+        _uiState.update { it.copy(isLoadingProfiles = true) }
+        viewModelScope.launch {
+            runCatching {
+                val rawContacts = contactsRepository.getDeviceContacts()
+
+                val allPhones = rawContacts
+                    .flatMap { it.phones }
+                    .map { it.normalizePhone() }
+                    .filter { it.isNotBlank() }
+                    .distinct()
+                val allEmails = rawContacts
+                    .flatMap { it.emails }
+                    .map { it.lowercase() }
+                    .filter { it.isNotBlank() }
+                    .distinct()
+
+                val phoneProfiles = friendsRepository.getProfilesByPhones(allPhones)
+                val emailProfiles = friendsRepository.getProfilesByEmails(allEmails)
+
+                val profileMap = (phoneProfiles + emailProfiles)
+                    .distinctBy { it.id }
+                    .filter { it.id != currentUserId }
+                    .associateBy { it.id }
+
+                val friendGroupsMap = _uiState.value.friends
+                    .associate { it.profile.id to it.sharedGroups }
+
+                profileMap.values.map { profile ->
+                    ContactOnDivvy(
+                        profile = profile,
+                        sharedGroups = friendGroupsMap[profile.id] ?: emptyList()
+                    )
+                }
+            }.onSuccess { contacts ->
+                _uiState.update {
+                    it.copy(contactsOnDivvy = contacts, isLoadingProfiles = false)
+                }
+            }.onFailure {
+                _uiState.update { it.copy(isLoadingProfiles = false) }
+            }
+        }
+    }
+
+    fun onMemberSearchChange(query: String) {
+        _uiState.update { it.copy(memberSearchQuery = query) }
+    }
+
+    fun onToggleMemberSelection(profileId: String) {
+        _uiState.update { current ->
+            val next = current.selectedMemberIds.toMutableSet()
+            if (next.contains(profileId)) next.remove(profileId) else next.add(profileId)
+            current.copy(selectedMemberIds = next)
+        }
+    }
+
+    fun sheetMemberList(): List<ContactOnDivvy> {
+        val state = _uiState.value
+        val query = state.memberSearchQuery.lowercase()
+
+        val base = state.contactsOnDivvy
+        return if (query.isBlank()) {
+            base
+        } else {
+            base.filter { contact ->
+                val name = "${contact.profile.firstName} ${contact.profile.lastName}".lowercase()
+                val email = contact.profile.email?.lowercase() ?: ""
+                val phone = contact.profile.phone ?: ""
+                name.contains(query) || email.contains(query) || phone.contains(query)
+            }
+        }.sortedBy { "${it.profile.firstName} ${it.profile.lastName}".lowercase() }
+    }
+
+    // Add to Group
     fun onShowAddToGroupSheet() {
-        _uiState.update { it.copy(showActionSheet = true, availableGroups = it.allGroups) }
+        _uiState.update {
+            it.copy(
+                showActionSheet = true,
+                availableGroups = it.allGroups
+            )
+        }
     }
 
     fun onDismissActionSheet() {
@@ -261,12 +366,17 @@ class FriendsViewModel @Inject constructor(
             val userIds = _uiState.value.selectedKeys
                 .filter { it.startsWith("divvy_") }
                 .map { it.removePrefix("divvy_") }
-            userIds.forEach { userId -> runCatching { memberRepository.addMember(groupId, userId) } }
+
+            userIds.forEach { userId ->
+                runCatching { memberRepository.addMember(groupId, userId) }
+            }
+
             _uiState.update { it.copy(showActionSheet = false, selectedKeys = emptySet()) }
             loadFriends()
         }
     }
 
+    // Create Group
     fun onShowCreateGroupSheet() {
         _uiState.update {
             it.copy(
@@ -295,17 +405,31 @@ class FriendsViewModel @Inject constructor(
                 _uiState.update { it.copy(createGroupError = "Group name is required.") }
                 return@launch
             }
+
             _uiState.update { it.copy(isCreatingGroup = true, createGroupError = null) }
+
             val userIds = state.selectedKeys
                 .filter { it.startsWith("divvy_") }
                 .map { it.removePrefix("divvy_") }
+
             runCatching {
                 val group = groupRepository.createGroup(name, state.createGroupIcon)
-                userIds.forEach { userId -> runCatching { memberRepository.addMember(group.id, userId) } }
+
+                userIds.forEach { userId ->
+                    runCatching { memberRepository.addMember(group.id, userId) }
+                }
+
                 groupRepository.refreshGroups()
                 group
             }.onSuccess { group ->
-                _uiState.update { it.copy(isCreatingGroup = false, showCreateGroupSheet = false, selectedKeys = emptySet(), createdGroupId = group.id) }
+                _uiState.update {
+                    it.copy(
+                        isCreatingGroup = false,
+                        showCreateGroupSheet = false,
+                        selectedKeys = emptySet(),
+                        createdGroupId = group.id
+                    )
+                }
                 loadFriends()
             }.onFailure {
                 _uiState.update { it.copy(isCreatingGroup = false, createGroupError = "Unable to create group.") }
