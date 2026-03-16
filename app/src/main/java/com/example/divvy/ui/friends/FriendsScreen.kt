@@ -8,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,18 +24,16 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.GroupAdd
-import androidx.compose.material.icons.rounded.PersonAdd
-import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -54,16 +53,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.divvy.models.ContactEntry
-import com.example.divvy.models.ContactType
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun FriendsScreen(
     viewModel: FriendsViewModel = hiltViewModel(),
-    onCreatedGroupNavigate: (String) -> Unit = {}
+    onCreatedGroupNavigate: (String) -> Unit = {},
+    onAddExpenseNavigate: (String) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -73,6 +73,14 @@ fun FriendsScreen(
         uiState.createdGroupId?.let { groupId ->
             onCreatedGroupNavigate(groupId)
             viewModel.onCreatedGroupNavigationHandled()
+        }
+    }
+
+    // Handle navigation for 1-on-1 expense
+    LaunchedEffect(uiState.navigateToSplitWithGroupId) {
+        uiState.navigateToSplitWithGroupId?.let { groupId ->
+            onAddExpenseNavigate(groupId)
+            viewModel.onNavigateToSplitHandled()
         }
     }
 
@@ -142,6 +150,9 @@ fun FriendsScreen(
                     count = uiState.selectedKeys.size,
                     onAddToGroup = { viewModel.onShowAddToGroupSheet() },
                     onCreateGroup = { viewModel.onShowCreateGroupSheet() },
+                    onAddExpense = if (uiState.selectedKeys.size == 1) {
+                        { viewModel.onAddExpenseWithSelectedFriend() }
+                    } else null,
                     onClear = { viewModel.onClearSelection() }
                 )
             }
@@ -158,7 +169,11 @@ fun FriendsScreen(
                             subtitle = null,
                             initials = friend.profile.firstName.take(1) + friend.profile.lastName.take(1),
                             isSelected = friend.selectionKey in uiState.selectedKeys,
-                            onClick = null,
+                            onClick = {
+                                if (uiState.selectedKeys.isNotEmpty()) {
+                                    viewModel.onToggleSelection(friend.selectionKey)
+                                }
+                            },
                             onLongClick = { viewModel.onToggleSelection(friend.selectionKey) },
                             groupBadges = friend.sharedGroups.map { it.name }
                         )
@@ -262,33 +277,57 @@ private fun SelectionActionBar(
     count: Int,
     onAddToGroup: () -> Unit,
     onCreateGroup: () -> Unit,
+    onAddExpense: (() -> Unit)? = null,
     onClear: () -> Unit
 ) {
     Surface(
         tonalElevation = 2.dp,
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceVariant
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "$count selected",
+                text = "$count selected",
                 style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.clickable { onClear() }
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onAddToGroup) {
-                    Icon(Icons.Rounded.GroupAdd, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Add to Group")
+            Spacer(Modifier.width(12.dp))
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (onAddExpense != null) {
+                    OutlinedButton(
+                        onClick = onAddExpense,
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.height(36.dp)
+                    ) {
+                        Text("Add Expense", fontSize = 12.sp, maxLines = 1)
+                    }
                 }
-                Button(onClick = onCreateGroup) {
-                    Text("Create Group")
+                OutlinedButton(
+                    onClick = onAddToGroup,
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.height(36.dp)
+                ) {
+                    Text("Add to Group", fontSize = 12.sp, maxLines = 1)
+                }
+                Button(
+                    onClick = onCreateGroup,
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.height(36.dp)
+                ) {
+                    Text("New Group", fontSize = 12.sp, maxLines = 1)
                 }
             }
         }
