@@ -19,6 +19,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -54,7 +55,9 @@ data class FriendsUiState(
     val isCreatingGroup: Boolean = false,
     val createGroupError: String? = null,
     val createdGroupId: String? = null,
-    // Member picker (shared by add-to-group and create-group sheets)
+    // Navigation for 1-on-1 expense
+    val navigateToSplitWithGroupId: String? = null,
+    // Member picker
     val memberSearchQuery: String = "",
     val selectedMemberIds: Set<String> = emptySet(),
     val contactsOnDivvy: List<ContactOnDivvy> = emptyList(),
@@ -429,14 +432,47 @@ class FriendsViewModel @Inject constructor(
                 }
                 loadFriends()
             }.onFailure {
-                _uiState.update {
-                    it.copy(
-                        isCreatingGroup = false,
-                        createGroupError = "Unable to create group. Please try again."
-                    )
+                _uiState.update { it.copy(isCreatingGroup = false, createGroupError = "Unable to create group.") }
+            }
+        }
+    }
+
+    fun onAddExpenseWithSelectedFriend() {
+        val selectedKey = _uiState.value.selectedKeys.firstOrNull() ?: return
+        if (!selectedKey.startsWith("divvy_")) return
+        val friendId = selectedKey.removePrefix("divvy_")
+        val friend = _uiState.value.friends.find { it.profile.id == friendId } ?: return
+
+        viewModelScope.launch {
+            // Check for existing 1-on-1 group
+            val existing1on1 = friend.sharedGroups.find { group ->
+                runCatching {
+                    memberRepository.refreshMembers(group.id)
+                    val members = memberRepository.getMembers(group.id).first()
+                    members.size == 1 // Only 1 other person besides current user
+                }.getOrDefault(false)
+            }
+
+            if (existing1on1 != null) {
+                _uiState.update { it.copy(navigateToSplitWithGroupId = existing1on1.id, selectedKeys = emptySet()) }
+            } else {
+                // Create a new 1-on-1 group automatically
+                runCatching {
+                    val groupName = "${friend.profile.firstName} and You"
+                    val group = groupRepository.createGroup(groupName, GroupIcon.Group)
+                    memberRepository.addMember(group.id, friendId)
+                    groupRepository.refreshGroups()
+                    group
+                }.onSuccess { group ->
+                    _uiState.update { it.copy(navigateToSplitWithGroupId = group.id, selectedKeys = emptySet()) }
+                    loadFriends()
                 }
             }
         }
+    }
+
+    fun onNavigateToSplitHandled() {
+        _uiState.update { it.copy(navigateToSplitWithGroupId = null) }
     }
 
     fun onCreatedGroupNavigationHandled() {
