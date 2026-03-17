@@ -30,14 +30,11 @@ import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.PersonAdd
 import androidx.compose.material.icons.rounded.FileUpload
 import androidx.compose.material.icons.rounded.Receipt
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -71,8 +68,6 @@ import com.example.divvy.ui.groups.ViewModels.CreateGroupStep
 import com.example.divvy.ui.theme.Amber
 import com.example.divvy.ui.theme.AvatarColors
 import com.example.divvy.ui.theme.Charcoal
-import com.example.divvy.ui.theme.NegativeRed
-import com.example.divvy.ui.theme.PositiveGreen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -135,9 +130,10 @@ fun HomeScreen(
                         Spacer(modifier = Modifier.height(8.dp))
                         
                         val netBalance = uiState.totalOwedCents - uiState.totalOwingCents
+                        val isOwed = netBalance >= 0
+                        val label = if (isOwed) "You are owed" else "You owe"
                         val dollars = kotlin.math.abs(netBalance) / 100.0
-                        val sign = if (netBalance < 0) "-" else ""
-                        val formattedNumber = "$sign${String.format("%,.2f", dollars)}"
+                        val formattedNumber = String.format("%,.2f", dollars)
                         
                         Text(
                             text = buildAnnotatedString {
@@ -152,7 +148,7 @@ fun HomeScreen(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Amount Owed",
+                            text = label,
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
                         )
