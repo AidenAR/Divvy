@@ -61,6 +61,7 @@ data class SplitExpenseUiState(
     val isLoadingProfiles: Boolean = false,
     val isCreatingGroup: Boolean = false,
     val createErrorMessage: String? = null,
+    val errorMessage: String? = null
 ) {
     val paidByName: String
         get() = members.firstOrNull { it.id == paidByUserId }?.name ?: "You"
@@ -77,7 +78,8 @@ data class SplitExpenseUiState(
         get() = amount.toDoubleOrNull() != null &&
             amount.toDouble() > 0 &&
             selectedGroupId != null &&
-            members.isNotEmpty()
+            members.isNotEmpty() &&
+            !isMembersLoading
 }
 
 @HiltViewModel
@@ -111,8 +113,8 @@ class SplitExpenseViewModel @Inject constructor(
 
     sealed interface SplitEvent {
         data object Created : SplitEvent
-        data class GoToAssignItems(val groupId: String, val amount: String, val description: String) : SplitEvent
-        data class GoToSplitByPercentage(val groupId: String, val amount: String, val description: String) : SplitEvent
+        data class GoToAssignItems(val groupId: String, val amount: String, val description: String, val paidByUserId: String) : SplitEvent
+        data class GoToSplitByPercentage(val groupId: String, val amount: String, val description: String, val paidByUserId: String) : SplitEvent
     }
 
     private val _events = Channel<SplitEvent>(Channel.BUFFERED)
@@ -141,18 +143,32 @@ class SplitExpenseViewModel @Inject constructor(
 
     private fun loadMembersForGroup(groupId: String) {
         viewModelScope.launch {
-            _uiState.update { it.copy(isMembersLoading = true) }
+            _uiState.update { it.copy(isMembersLoading = true, errorMessage = null) }
             memberRepository.refreshMembers(groupId)
             val groupMembers = memberRepository.getMembers(groupId).first()
+
             val allMembers = buildMemberList(groupMembers)
             _uiState.update { it.copy(members = allMembers, isMembersLoading = false) }
         }
     }
 
     private fun buildMemberList(groupMembers: List<GroupMember>): List<SplitMember> {
+        val memberSet = mutableSetOf<SplitMember>()
+
+        // Ensure "You" is always present for splitting logic
         val me = SplitMember(id = currentUserId, name = "You", isCurrentUser = true)
-        val others = groupMembers.map { SplitMember(id = it.userId, name = it.name) }
-        return listOf(me) + others
+        memberSet.add(me)
+
+        groupMembers.forEach { member ->
+            val isMe = member.userId == currentUserId
+            memberSet.add(SplitMember(
+                id = member.userId,
+                name = if (isMe) "You" else member.name,
+                isCurrentUser = isMe
+            ))
+        }
+
+        return memberSet.toList().sortedByDescending { it.isCurrentUser }
     }
 
     fun onAmountChange(value: String) {
@@ -161,24 +177,24 @@ class SplitExpenseViewModel @Inject constructor(
         if (dotCount > 1) return
         val dotIndex = filtered.indexOf('.')
         if (dotIndex != -1 && filtered.length - dotIndex - 1 > 2) return
-        _uiState.update { it.copy(amount = filtered) }
+        _uiState.update { it.copy(amount = filtered, errorMessage = null) }
     }
 
     fun onDescriptionChange(value: String) {
-        _uiState.update { it.copy(description = value) }
+        _uiState.update { it.copy(description = value, errorMessage = null) }
     }
 
     fun onGroupSelected(groupId: String) {
-        _uiState.update { it.copy(selectedGroupId = groupId) }
+        _uiState.update { it.copy(selectedGroupId = groupId, errorMessage = null) }
         loadMembersForGroup(groupId)
     }
 
     fun onSplitMethodSelected(method: SplitMethod) {
-        _uiState.update { it.copy(splitMethod = method) }
+        _uiState.update { it.copy(splitMethod = method, errorMessage = null) }
     }
 
     fun onPaidBySelected(userId: String) {
-        _uiState.update { it.copy(paidByUserId = userId) }
+        _uiState.update { it.copy(paidByUserId = userId, errorMessage = null) }
     }
 
     fun onShowCreateGroup() {
@@ -283,6 +299,10 @@ class SplitExpenseViewModel @Inject constructor(
         val state = _uiState.value
         val groupId = state.selectedGroupId ?: return
         if (state.amount.toDoubleOrNull() == null) return
+        if (state.members.isEmpty()) {
+            _uiState.update { it.copy(errorMessage = "Loading group members...") }
+            return
+        }
 
         val desc = state.description.trim().ifBlank { "Expense" }
         val amountCents = (state.amount.toDouble() * 100).toLong()
@@ -290,13 +310,13 @@ class SplitExpenseViewModel @Inject constructor(
         when (state.splitMethod) {
             SplitMethod.ByItems -> {
                 viewModelScope.launch {
-                    _events.send(SplitEvent.GoToAssignItems(groupId, state.amount, desc))
+                    _events.send(SplitEvent.GoToAssignItems(groupId, state.amount, desc, state.paidByUserId))
                 }
                 return
             }
             SplitMethod.ByPercentage -> {
                 viewModelScope.launch {
-                    _events.send(SplitEvent.GoToSplitByPercentage(groupId, state.amount, desc))
+                    _events.send(SplitEvent.GoToSplitByPercentage(groupId, state.amount, desc, state.paidByUserId))
                 }
                 return
             }
@@ -304,22 +324,34 @@ class SplitExpenseViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isCreating = true) }
-            val allUserIds = state.members.map { it.id }
-            val splits = splitEqually(amountCents, allUserIds)
-            expensesRepository.createExpenseWithSplits(
-                groupId = groupId,
-                description = desc,
-                amountCents = amountCents,
-                currency = "USD",
-                splitMethod = "EQUAL",
-                splits = splits
-            )
-            balanceRepository.refreshBalances(groupId)
-            groupRepository.refreshGroups()
-            activityRepository.refreshActivityFeed()
-            _uiState.update { it.copy(isCreating = false) }
-            _events.send(SplitEvent.Created)
+            _uiState.update { it.copy(isCreating = true, errorMessage = null) }
+            try {
+                // Ensure the list is derived from the latest state, ensuring all members are included
+                val allUserIds = state.members.map { it.id }
+                val splits = splitEqually(amountCents, allUserIds)
+
+                expensesRepository.createExpenseWithSplits(
+                    groupId = groupId,
+                    description = desc,
+                    amountCents = amountCents,
+                    currency = "USD",
+                    splitMethod = "EQUAL",
+                    paidByUserId = state.paidByUserId,
+                    splits = splits
+                )
+                balanceRepository.refreshBalances(groupId)
+                groupRepository.refreshGroups()
+                activityRepository.refreshActivityFeed()
+                _uiState.update { it.copy(isCreating = false) }
+                _events.send(SplitEvent.Created)
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        isCreating = false,
+                        errorMessage = e.message ?: "Failed to add expense. Please try again."
+                    )
+                }
+            }
         }
     }
 }

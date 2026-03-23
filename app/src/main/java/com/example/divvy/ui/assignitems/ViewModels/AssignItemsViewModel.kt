@@ -49,6 +49,7 @@ data class AssignItemsUiState(
     val items: List<ReceiptItem> = emptyList(),
     val assignments: Map<String, Set<String>> = emptyMap(),
     val expandedItemId: String? = null,
+    val paidByUserId: String = "",
     val isLoading: Boolean = false,
     val isSaving: Boolean = false
 )
@@ -73,6 +74,7 @@ class AssignItemsViewModel @AssistedInject constructor(
     @Assisted("groupId") private val groupId: String,
     @Assisted("amountDisplay") private val amountDisplay: String,
     @Assisted("description") private val description: String,
+    @Assisted("paidByUserId") private val paidByUserId: String,
     private val authRepository: AuthRepository,
     private val memberRepository: MemberRepository,
     private val expensesRepository: ExpensesRepository,
@@ -87,7 +89,8 @@ class AssignItemsViewModel @AssistedInject constructor(
         fun create(
             @Assisted("groupId") groupId: String,
             @Assisted("amountDisplay") amountDisplay: String,
-            @Assisted("description") description: String
+            @Assisted("description") description: String,
+            @Assisted("paidByUserId") paidByUserId: String
         ): AssignItemsViewModel
     }
 
@@ -95,6 +98,7 @@ class AssignItemsViewModel @AssistedInject constructor(
         AssignItemsUiState(
             description = description.ifBlank { "Receipt" },
             amountDisplay = amountDisplay,
+            paidByUserId = paidByUserId,
             isLoading = true
         )
     )
@@ -193,6 +197,7 @@ class AssignItemsViewModel @AssistedInject constructor(
                 amountCents = amountCents,
                 currency = "USD",
                 splitMethod = "BY_ITEM",
+                paidByUserId = state.paidByUserId,
                 splits = splits
             )
             val receiptRows = state.items.map { item ->

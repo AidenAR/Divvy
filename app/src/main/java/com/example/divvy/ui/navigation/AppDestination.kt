@@ -32,14 +32,16 @@ sealed interface AppDestination {
     data class AssignItems(
         val groupId: String,
         val amountDisplay: String,
-        val description: String
+        val description: String,
+        val paidByUserId: String
     ) : AppDestination
 
     @Serializable
     data class SplitByPercentage(
         val groupId: String,
         val amountDisplay: String,
-        val description: String
+        val description: String,
+        val paidByUserId: String
     ) : AppDestination
 
     @Serializable

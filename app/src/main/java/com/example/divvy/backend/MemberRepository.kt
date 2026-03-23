@@ -81,7 +81,6 @@ class SupabaseMemberRepository @Inject constructor(
         val memberRows = supabaseClient.from("group_members")
             .select { filter { eq("group_id", groupId) } }
             .decodeList<GroupMemberRow>()
-            .filter { it.userId != authRepository.getCurrentUserId() }
 
         if (memberRows.isEmpty()) return emptyList()
 

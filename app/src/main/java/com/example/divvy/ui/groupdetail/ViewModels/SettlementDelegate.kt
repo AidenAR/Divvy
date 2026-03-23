@@ -78,6 +78,7 @@ class SettlementDelegate(
                 amountCents = amountCents,
                 currency = "USD",
                 splitMethod = "SETTLEMENT",
+                paidByUserId = paidBy,
                 splits = listOf(ExpenseSplit(splitUserId, amountCents))
             )
             balanceRepository.refreshBalances(groupId)
