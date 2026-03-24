@@ -69,7 +69,7 @@ fun CreateGroupSheet(
     val query = profileSearchQuery.trim().lowercase()
     val filteredProfiles = profiles.filter { profile ->
         if (query.isBlank()) return@filter true
-        val fullName = "${profile.firstName} ${profile.lastName}".trim().lowercase()
+        val fullName = "${profile.firstName.orEmpty()} ${profile.lastName.orEmpty()}".trim().lowercase()
         val phone = profile.phone.orEmpty().lowercase()
         fullName.contains(query) || phone.contains(query)
     }
@@ -249,7 +249,7 @@ fun CreateGroupSheet(
                         Spacer(modifier = Modifier.height(6.dp))
                         LazyColumn(modifier = Modifier.height(220.dp)) {
                             items(selectedProfiles, key = { it.id }) { profile ->
-                                val profileName = "${profile.firstName} ${profile.lastName}".trim().ifBlank { "Unknown" }
+                                val profileName = "${profile.firstName.orEmpty()} ${profile.lastName.orEmpty()}".trim().ifBlank { "Unknown" }
                                 Text(
                                     text = profileName,
                                     style = MaterialTheme.typography.bodyMedium,

@@ -339,12 +339,12 @@ class FriendsViewModel @Inject constructor(
             base
         } else {
             base.filter { contact ->
-                val name = "${contact.profile.firstName} ${contact.profile.lastName}".lowercase()
+                val name = "${contact.profile.firstName.orEmpty()} ${contact.profile.lastName.orEmpty()}".lowercase()
                 val email = contact.profile.email?.lowercase() ?: ""
                 val phone = contact.profile.phone ?: ""
                 name.contains(query) || email.contains(query) || phone.contains(query)
             }
-        }.sortedBy { "${it.profile.firstName} ${it.profile.lastName}".lowercase() }
+        }.sortedBy { "${it.profile.firstName.orEmpty()} ${it.profile.lastName.orEmpty()}".lowercase() }
     }
 
     // Add to Group
@@ -458,7 +458,7 @@ class FriendsViewModel @Inject constructor(
             } else {
                 // Create a new 1-on-1 group automatically
                 runCatching {
-                    val groupName = "${friend.profile.firstName} and You"
+                    val groupName = "${friend.profile.firstName.orEmpty().ifBlank { "Friend" }} and You"
                     val group = groupRepository.createGroup(groupName, GroupIcon.Group)
                     memberRepository.addMember(group.id, friendId)
                     groupRepository.refreshGroups()

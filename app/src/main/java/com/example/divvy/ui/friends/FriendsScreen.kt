@@ -167,7 +167,7 @@ fun FriendsScreen(
                         ContactRow(
                             name = friend.displayName,
                             subtitle = null,
-                            initials = friend.profile.firstName.take(1) + friend.profile.lastName.take(1),
+                            initials = (friend.profile.firstName?.take(1).orEmpty() + friend.profile.lastName?.take(1).orEmpty()).ifBlank { "?" },
                             isSelected = friend.selectionKey in uiState.selectedKeys,
                             onClick = {
                                 if (uiState.selectedKeys.isNotEmpty()) {

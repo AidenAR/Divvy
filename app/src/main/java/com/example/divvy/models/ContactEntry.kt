@@ -9,7 +9,7 @@ sealed interface ContactEntry {
         val sharedGroups: List<Group>
     ) : ContactEntry {
         override val displayName: String
-            get() = "${profile.firstName} ${profile.lastName}".trim()
+            get() = "${profile.firstName.orEmpty()} ${profile.lastName.orEmpty()}".trim()
         override val selectionKey: String
             get() = "divvy_${profile.id}"
     }
