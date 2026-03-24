@@ -10,6 +10,7 @@ import com.example.divvy.backend.MemberRepository
 import com.example.divvy.models.Group
 import com.example.divvy.models.LedgerEntry
 import com.example.divvy.models.LedgerEntryType
+import com.example.divvy.models.formatAmount
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -33,21 +34,27 @@ data class LedgerUiState(
     val groupOptions: List<Group> = emptyList(),
     val isLoading: Boolean = true
 ) {
-    val netBalanceCents: Long
+    val netBalanceByCurrency: Map<String, Long>
         get() {
-            val earned = allEntries
-                .filter { it.paidByCurrentUser && it.type == LedgerEntryType.EXPENSE }
-                .sumOf { it.amountCents }
-            val owed = allEntries
-                .filter { !it.paidByCurrentUser && it.type == LedgerEntryType.EXPENSE }
-                .sumOf { it.amountCents }
-            return earned - owed
+            val byCurrency = mutableMapOf<String, Long>()
+            for (entry in allEntries.filter { it.type == LedgerEntryType.EXPENSE }) {
+                val delta = if (entry.paidByCurrentUser) entry.amountCents else -entry.amountCents
+                byCurrency[entry.currency] = (byCurrency[entry.currency] ?: 0L) + delta
+            }
+            return byCurrency
         }
+
+    val netBalanceCents: Long
+        get() = netBalanceByCurrency.values.sum()
 
     val formattedNetBalance: String
         get() {
-            val dollars = kotlin.math.abs(netBalanceCents) / 100.0
-            return "$${String.format("%.2f", dollars)}"
+            val byCurrency = netBalanceByCurrency
+            if (byCurrency.isEmpty()) return formatAmount(0L, "USD")
+            return byCurrency.entries
+                .filter { it.value != 0L }
+                .joinToString(", ") { formatAmount(kotlin.math.abs(it.value), it.key) }
+                .ifEmpty { formatAmount(0L, "USD") }
         }
 
     val isNetPositive: Boolean get() = netBalanceCents >= 0
@@ -106,7 +113,8 @@ class LedgerViewModel @Inject constructor(
                         groupName = groupNameMap[expense.groupId] ?: "",
                         paidByName = memberNameMap[expense.paidByUserId] ?: "Unknown",
                         toName = if (toUserId.isNotBlank()) memberNameMap[toUserId] ?: "Unknown" else "",
-                        paidByCurrentUser = expense.paidByUserId == myUserId
+                        paidByCurrentUser = expense.paidByUserId == myUserId,
+                        currency = expense.currency
                     )
                 }.sortedByDescending { it.dateLabel }
 

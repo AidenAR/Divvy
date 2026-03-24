@@ -8,6 +8,7 @@ import com.example.divvy.backend.ExpensesRepository
 import com.example.divvy.backend.GroupRepository
 import com.example.divvy.components.GroupIcon
 import com.example.divvy.models.Group
+import com.example.divvy.models.formatAmount
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -30,33 +31,39 @@ data class AnalyticsUiState(
     val youPaidCents: Long = 0L,
     val expenseCount: Int = 0,
     val groupSpending: List<GroupSpending> = emptyList(),
-    val isLoading: Boolean = true
+    val isLoading: Boolean = true,
+    val totalSpentByCurrency: Map<String, Long> = emptyMap(),
+    val yourShareByCurrency: Map<String, Long> = emptyMap(),
+    val youPaidByCurrency: Map<String, Long> = emptyMap()
 ) {
     val formattedTotalSpent: String
-        get() = formatDollars(totalSpentCents)
+        get() = formatCurrencyMap(totalSpentByCurrency, totalSpentCents)
 
     val formattedYourShare: String
-        get() = formatDollars(yourShareCents)
+        get() = formatCurrencyMap(yourShareByCurrency, yourShareCents)
 
     val formattedYouPaid: String
-        get() = formatDollars(youPaidCents)
+        get() = formatCurrencyMap(youPaidByCurrency, youPaidCents)
 
     val overpaidCents: Long
         get() = youPaidCents - yourShareCents
 
     val formattedOverpaid: String
-        get() = formatDollars(kotlin.math.abs(overpaidCents))
+        get() = formatAmount(kotlin.math.abs(overpaidCents), "USD")
 
     val isOverpaying: Boolean
         get() = overpaidCents > 0
 
     val maxGroupSpendingCents: Long
         get() = groupSpending.maxOfOrNull { it.yourShareCents } ?: 1L
-}
 
-private fun formatDollars(cents: Long): String {
-    val dollars = cents / 100.0
-    return "$${String.format("%.2f", dollars)}"
+    private fun formatCurrencyMap(map: Map<String, Long>, fallbackCents: Long): String {
+        if (map.isEmpty()) return formatAmount(fallbackCents, "USD")
+        return map.entries
+            .filter { it.value > 0 }
+            .joinToString(", ") { formatAmount(it.value, it.key) }
+            .ifEmpty { formatAmount(0L, "USD") }
+    }
 }
 
 @HiltViewModel
@@ -88,19 +95,26 @@ class AnalyticsViewModel @Inject constructor(
                 var totalSpent = 0L
                 var yourShare = 0L
                 var youPaid = 0L
+                val totalSpentByCurrency = mutableMapOf<String, Long>()
+                val yourShareByCurrency = mutableMapOf<String, Long>()
+                val youPaidByCurrency = mutableMapOf<String, Long>()
                 val perGroup = mutableMapOf<String, Long>()
                 val perGroupTotal = mutableMapOf<String, Long>()
 
                 for (expense in realExpenses) {
+                    val cur = expense.currency
                     totalSpent += expense.amountCents
+                    totalSpentByCurrency[cur] = (totalSpentByCurrency[cur] ?: 0L) + expense.amountCents
 
                     val myShare = expense.splits
                         .find { it.userId == myUserId }
                         ?.amountCents ?: 0L
                     yourShare += myShare
+                    yourShareByCurrency[cur] = (yourShareByCurrency[cur] ?: 0L) + myShare
 
                     if (expense.paidByUserId == myUserId) {
                         youPaid += expense.amountCents
+                        youPaidByCurrency[cur] = (youPaidByCurrency[cur] ?: 0L) + expense.amountCents
                     }
 
                     perGroup[expense.groupId] = (perGroup[expense.groupId] ?: 0L) + myShare
@@ -126,7 +140,10 @@ class AnalyticsViewModel @Inject constructor(
                     youPaidCents = youPaid,
                     expenseCount = realExpenses.size,
                     groupSpending = groupSpending,
-                    isLoading = false
+                    isLoading = false,
+                    totalSpentByCurrency = totalSpentByCurrency,
+                    yourShareByCurrency = yourShareByCurrency,
+                    youPaidByCurrency = youPaidByCurrency
                 )
             }
         }

@@ -33,7 +33,8 @@ sealed interface AppDestination {
         val groupId: String,
         val amountDisplay: String,
         val description: String,
-        val paidByUserId: String
+        val paidByUserId: String,
+        val currency: String = "USD"
     ) : AppDestination
 
     @Serializable
@@ -41,7 +42,8 @@ sealed interface AppDestination {
         val groupId: String,
         val amountDisplay: String,
         val description: String,
-        val paidByUserId: String
+        val paidByUserId: String,
+        val currency: String = "USD"
     ) : AppDestination
 
     @Serializable

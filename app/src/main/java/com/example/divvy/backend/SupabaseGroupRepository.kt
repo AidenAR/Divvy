@@ -14,12 +14,19 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import com.example.divvy.models.CurrencyBalance
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import javax.inject.Inject
 import javax.inject.Singleton
+
+@Serializable
+private data class CurrencyBalanceRow(
+    val currency: String? = "USD",
+    @SerialName("balance_cents") val balanceCents: Long = 0L
+)
 
 @Serializable
 private data class GroupSummaryRow(
@@ -29,7 +36,8 @@ private data class GroupSummaryRow(
     @SerialName("created_by")   val createdBy: String = "",
     @SerialName("created_at")   val createdAt: String = "",
     @SerialName("member_count") val memberCount: Long = 0L,
-    @SerialName("balance_cents") val balanceCents: Long = 0L
+    @SerialName("balance_cents") val balanceCents: Long = 0L,
+    val balances: List<CurrencyBalanceRow> = emptyList()
 )
 
 @Serializable
@@ -78,7 +86,7 @@ class SupabaseGroupRepository @Inject constructor(
             name = row.name,
             icon = iconFromName(row.icon),
             memberCount = 1,
-            balanceCents = 0L,
+            balances = emptyList(),
             createdBy = row.createdBy
         )
         _groups.update { result ->
@@ -114,17 +122,29 @@ class SupabaseGroupRepository @Inject constructor(
 
     override suspend fun refreshGroups() {
         try {
-            val rows = supabaseClient.postgrest
-                .rpc("get_my_groups_summary")
-                .decodeList<GroupSummaryRow>()
+            val rows = try {
+                supabaseClient.postgrest
+                    .rpc("get_my_groups_summary_v2")
+                    .decodeList<GroupSummaryRow>()
+            } catch (_: Exception) {
+                // Fallback to original function if _v2 is not available
+                supabaseClient.postgrest
+                    .rpc("get_my_groups_summary")
+                    .decodeList<GroupSummaryRow>()
+            }
 
             _groups.value = DataResult.Success(rows.map { row ->
+                val currencyBalances = if (row.balances.isNotEmpty()) {
+                    row.balances.map { CurrencyBalance(it.currency ?: "USD", it.balanceCents) }
+                } else {
+                    listOf(CurrencyBalance("USD", row.balanceCents))
+                }
                 Group(
                     id = row.id,
                     name = row.name,
                     icon = iconFromName(row.icon),
                     memberCount = row.memberCount.toInt(),
-                    balanceCents = row.balanceCents,
+                    balances = currencyBalances,
                     createdBy = row.createdBy
                 )
             })

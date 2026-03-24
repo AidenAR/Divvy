@@ -54,6 +54,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.divvy.models.SupportedCurrency
+import com.example.divvy.models.formatAmount
 import com.example.divvy.ui.splitpercentage.ViewModels.PercentageMember
 import com.example.divvy.ui.splitpercentage.ViewModels.SplitByPercentageViewModel
 import com.example.divvy.ui.theme.DmSansFamily
@@ -126,7 +128,8 @@ fun SplitByPercentageScreen(
                 Spacer(Modifier.height(8.dp))
                 InfoCard(
                     description = uiState.description,
-                    amount = uiState.amountDisplay
+                    amount = uiState.amountDisplay,
+                    currencyCode = uiState.currency
                 )
                 Spacer(Modifier.height(18.dp))
             }
@@ -183,7 +186,7 @@ fun SplitByPercentageScreen(
 }
 
 @Composable
-private fun InfoCard(description: String, amount: String) {
+private fun InfoCard(description: String, amount: String, currencyCode: String = "USD") {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -198,8 +201,8 @@ private fun InfoCard(description: String, amount: String) {
         )
         Spacer(Modifier.height(4.dp))
         val displayAmount = amount.toDoubleOrNull()?.let {
-            "$${String.format("%.2f", it)}"
-        } ?: "$$amount"
+            formatAmount((it * 100).toLong(), currencyCode)
+        } ?: "${SupportedCurrency.fromCode(currencyCode).symbol}$amount"
         Text(
             text = displayAmount,
             style = MaterialTheme.typography.headlineSmall,
