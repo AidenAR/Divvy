@@ -26,8 +26,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AttachMoney
+import androidx.compose.material.icons.rounded.CardGiftcard
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Checklist
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Percent
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -56,6 +58,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -180,6 +183,10 @@ fun SplitExpenseScreen(
                         SplitPreview(
                             members = uiState.members,
                             perPersonAmount = uiState.perPersonAmount,
+                            coveredBy = uiState.coveredBy,
+                            expandedCoveringMemberId = uiState.expandedCoveringMemberId,
+                            onToggleCovering = viewModel::onToggleCoveringForMember,
+                            onSetCovering = viewModel::onSetCovering,
                         )
                     }
                 }
@@ -682,6 +689,10 @@ private fun GroupCard(group: Group, isSelected: Boolean, onClick: () -> Unit) {
 private fun SplitPreview(
     members: List<SplitMember>,
     perPersonAmount: String,
+    coveredBy: Map<String, String>,
+    expandedCoveringMemberId: String?,
+    onToggleCovering: (String) -> Unit,
+    onSetCovering: (coveredUserId: String, covererUserId: String?) -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -698,38 +709,117 @@ private fun SplitPreview(
         Spacer(Modifier.height(12.dp))
         members.forEachIndexed { index, member ->
             val color = AvatarColors[index % AvatarColors.size]
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
+            val coverer = coveredBy[member.id]
+            val covererName = members.firstOrNull { it.id == coverer }?.name
+            val isExpanded = expandedCoveringMemberId == member.id
+
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
                     modifier = Modifier
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .background(color),
-                    contentAlignment = Alignment.Center
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(color),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = member.name.first().uppercase(),
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp
+                        )
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = member.name,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onBackground,
+                        )
+                        if (covererName != null) {
+                            Text(
+                                text = "Covered by $covererName",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
+                    val coversCount = coveredBy.values.count { it == member.id }
+                    val displayAmount = if (coverer != null) {
+                        perPersonAmount
+                    } else if (coversCount > 0) {
+                        val base = perPersonAmount.toDoubleOrNull() ?: 0.0
+                        String.format("%.2f", base * (1 + coversCount))
+                    } else {
+                        perPersonAmount
+                    }
                     Text(
-                        text = member.name.first().uppercase(),
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp
+                        text = "$$displayAmount",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = if (coverer != null) MaterialTheme.colorScheme.onSurfaceVariant
+                            else MaterialTheme.colorScheme.onBackground,
+                        textDecoration = if (coverer != null) TextDecoration.LineThrough
+                            else TextDecoration.None,
                     )
+                    Spacer(Modifier.width(8.dp))
+                    if (coverer != null) {
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = "Remove covering",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .size(18.dp)
+                                .clip(CircleShape)
+                                .clickable { onSetCovering(member.id, null) }
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Rounded.CardGiftcard,
+                            contentDescription = "Cover this share",
+                            tint = if (isExpanded) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .size(18.dp)
+                                .clickable { onToggleCovering(member.id) }
+                        )
+                    }
                 }
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    text = member.name,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    text = "$$perPersonAmount",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
+
+                AnimatedVisibility(visible = isExpanded) {
+                    Column(
+                        modifier = Modifier.padding(start = 38.dp, top = 4.dp, bottom = 8.dp)
+                    ) {
+                        Text(
+                            text = "Who's covering ${member.name}'s share?",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            members.filter { it.id != member.id }.forEach { candidate ->
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(MaterialTheme.colorScheme.surface)
+                                        .clickable { onSetCovering(member.id, candidate.id) }
+                                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = candidate.name,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onBackground,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }

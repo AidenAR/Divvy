@@ -51,7 +51,9 @@ data class AssignItemsUiState(
     val expandedItemId: String? = null,
     val paidByUserId: String = "",
     val isLoading: Boolean = false,
-    val isSaving: Boolean = false
+    val isSaving: Boolean = false,
+    val coveredBy: Map<String, String> = emptyMap(),
+    val expandedCoveringMemberId: String? = null,
 )
 
 private val MemberColors = listOf(
@@ -144,6 +146,26 @@ class AssignItemsViewModel @AssistedInject constructor(
         }
     }
 
+    fun onToggleCoveringForMember(memberId: String) {
+        _uiState.update {
+            it.copy(
+                expandedCoveringMemberId =
+                    if (it.expandedCoveringMemberId == memberId) null else memberId
+            )
+        }
+    }
+
+    fun onSetCovering(coveredUserId: String, covererUserId: String?) {
+        _uiState.update { state ->
+            val next = if (covererUserId != null) {
+                state.coveredBy + (coveredUserId to covererUserId)
+            } else {
+                state.coveredBy - coveredUserId
+            }
+            state.copy(coveredBy = next, expandedCoveringMemberId = null)
+        }
+    }
+
     fun assignedNamesForItem(itemId: String): String {
         val state = _uiState.value
         val ids = state.assignments[itemId].orEmpty()
@@ -185,7 +207,9 @@ class AssignItemsViewModel @AssistedInject constructor(
             }
         }
 
-        val splits = state.members.map { m -> ExpenseSplit(m.id, perUser[m.id] ?: 0L) }
+        val splits = state.members.map { m ->
+            ExpenseSplit(m.id, perUser[m.id] ?: 0L, isCoveredBy = state.coveredBy[m.id])
+        }
         val amountCents = splits.sumOf { it.amountCents }
         Log.d("AssignItems", "finalTotal=$amountCents, splits=$splits")
 

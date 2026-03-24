@@ -27,7 +27,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.rounded.CardGiftcard
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -148,6 +151,41 @@ fun AssignItemsScreen(
                     onToggleMember = { memberId ->
                         viewModel.onToggleMemberForItem(item.id, memberId)
                     }
+                )
+                Spacer(Modifier.height(8.dp))
+            }
+
+            item {
+                Spacer(Modifier.height(24.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                Spacer(Modifier.height(18.dp))
+                Text(
+                    text = "COVERING",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    letterSpacing = 1.sp,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = "Gift someone's share so they don't owe",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(14.dp))
+            }
+
+            items(uiState.members, key = { "cover_${it.id}" }) { member ->
+                CoveringMemberRow(
+                    member = member,
+                    covererName = uiState.coveredBy[member.id]?.let { coverId ->
+                        uiState.members.firstOrNull { it.id == coverId }?.name
+                    },
+                    isExpanded = uiState.expandedCoveringMemberId == member.id,
+                    allMembers = uiState.members,
+                    onToggleCovering = { viewModel.onToggleCoveringForMember(member.id) },
+                    onSetCovering = { covererUserId ->
+                        viewModel.onSetCovering(member.id, covererUserId)
+                    },
                 )
                 Spacer(Modifier.height(8.dp))
             }
@@ -358,5 +396,110 @@ private fun MemberAssignChip(
             fontWeight = if (isAssigned) FontWeight.SemiBold else FontWeight.Normal,
             color = if (isAssigned) Color.White else MaterialTheme.colorScheme.onBackground
         )
+    }
+}
+
+@Composable
+private fun CoveringMemberRow(
+    member: AssignMember,
+    covererName: String?,
+    isExpanded: Boolean,
+    allMembers: List<AssignMember>,
+    onToggleCovering: () -> Unit,
+    onSetCovering: (covererUserId: String?) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surface)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(member.color),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = member.name.first().uppercase(),
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = member.name,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                if (covererName != null) {
+                    Text(
+                        text = "Covered by $covererName",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+            if (covererName != null) {
+                Icon(
+                    imageVector = Icons.Rounded.Close,
+                    contentDescription = "Remove covering",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .size(20.dp)
+                        .clip(CircleShape)
+                        .clickable { onSetCovering(null) }
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Rounded.CardGiftcard,
+                    contentDescription = "Cover this share",
+                    tint = if (isExpanded) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .size(20.dp)
+                        .clickable(onClick = onToggleCovering)
+                )
+            }
+        }
+
+        AnimatedVisibility(visible = isExpanded) {
+            Column(
+                modifier = Modifier.padding(start = 60.dp, end = 16.dp, bottom = 12.dp)
+            ) {
+                Text(
+                    text = "Who's covering ${member.name}'s share?",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    allMembers.filter { it.id != member.id }.forEach { candidate ->
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .clickable { onSetCovering(candidate.id) }
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = candidate.name,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onBackground,
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
