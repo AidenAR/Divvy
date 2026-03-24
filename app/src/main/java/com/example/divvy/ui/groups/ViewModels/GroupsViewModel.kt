@@ -11,6 +11,7 @@ import com.example.divvy.backend.ProfilesRepository
 import com.example.divvy.components.GroupIcon
 import com.example.divvy.models.Group
 import com.example.divvy.models.ProfileRow
+import android.util.Log
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -86,7 +87,10 @@ class GroupsViewModel @Inject constructor(
             )
         }
         viewModelScope.launch {
-            val profiles = runCatching { profilesRepository.listAllProfiles() }.getOrDefault(emptyList())
+            val result = runCatching { profilesRepository.listAllProfiles() }
+            result.onFailure { e -> Log.e("GroupsVM", "listAllProfiles failed", e) }
+            val profiles = result.getOrDefault(emptyList())
+            Log.d("GroupsVM", "Loaded ${profiles.size} profiles, currentUserId=$currentUserId")
             _uiState.update {
                 it.copy(
                     allProfiles = profiles.filter { p -> p.id != currentUserId },

@@ -6,8 +6,8 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class ProfileRow(
     val id: String,
-    @SerialName("first_name") val firstName: String,
-    @SerialName("last_name") val lastName: String,
+    @SerialName("first_name") val firstName: String? = null,
+    @SerialName("last_name") val lastName: String? = null,
     @SerialName("created_at") val createdAt: String? = null,
     @SerialName("auth_method") val authMethod: String? = null,
     @SerialName("email") val email: String? = null,

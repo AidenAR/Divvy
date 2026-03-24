@@ -28,8 +28,8 @@ interface FriendsRepository {
 @Serializable
 private data class FriendGroupRow(
     @SerialName("user_id") val userId: String,
-    @SerialName("first_name") val firstName: String,
-    @SerialName("last_name") val lastName: String,
+    @SerialName("first_name") val firstName: String? = null,
+    @SerialName("last_name") val lastName: String? = null,
     @SerialName("email") val email: String? = null,
     @SerialName("phone") val phone: String? = null,
     @SerialName("group_id") val groupId: String,
@@ -52,8 +52,8 @@ class SupabaseFriendsRepository @Inject constructor(
             FriendWithGroups(
                 profile = ProfileRow(
                     id = userId,
-                    firstName = first.firstName,
-                    lastName = first.lastName,
+                    firstName = first.firstName.orEmpty(),
+                    lastName = first.lastName.orEmpty(),
                     email = first.email,
                     phone = first.phone
                 ),

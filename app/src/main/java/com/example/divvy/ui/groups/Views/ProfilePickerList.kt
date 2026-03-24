@@ -43,7 +43,7 @@ fun ProfilePickerList(
 ) {
     LazyColumn(modifier = modifier) {
         items(profiles, key = { it.id }) { profile ->
-            val name = "${profile.firstName} ${profile.lastName}".trim().ifBlank { "Unknown" }
+            val name = "${profile.firstName.orEmpty()} ${profile.lastName.orEmpty()}".trim().ifBlank { "Unknown" }
             val isSelected = selectedIds.contains(profile.id)
             val isLocked = lockedIds.contains(profile.id)
             val colorIndex = kotlin.math.abs(profile.id.hashCode()) % AvatarColors.size

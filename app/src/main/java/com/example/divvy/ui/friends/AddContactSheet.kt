@@ -87,7 +87,7 @@ fun AddContactSheet(
             if (matchedProfile != null) {
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    text = "Already on Divvy! ${matchedProfile.firstName} ${matchedProfile.lastName}".trim(),
+                    text = "Already on Divvy! ${matchedProfile.firstName.orEmpty()} ${matchedProfile.lastName.orEmpty()}".trim(),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Medium

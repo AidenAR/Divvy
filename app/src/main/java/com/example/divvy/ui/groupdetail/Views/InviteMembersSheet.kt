@@ -39,7 +39,7 @@ fun InviteMembersSheet(
     val query = searchQuery.trim().lowercase()
     val filtered = profiles.filter { profile ->
         if (query.isBlank()) return@filter true
-        val name = "${profile.firstName} ${profile.lastName}".lowercase()
+        val name = "${profile.firstName.orEmpty()} ${profile.lastName.orEmpty()}".lowercase()
         val phone = profile.phone?.lowercase().orEmpty()
         name.contains(query) || phone.contains(query)
     }
