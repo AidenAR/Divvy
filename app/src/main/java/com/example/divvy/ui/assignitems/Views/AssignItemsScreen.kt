@@ -49,6 +49,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.divvy.models.SupportedCurrency
+import com.example.divvy.models.formatAmount
 import com.example.divvy.ui.assignitems.ViewModels.AssignItemsViewModel
 import com.example.divvy.ui.assignitems.ViewModels.AssignMember
 import com.example.divvy.ui.assignitems.ViewModels.ReceiptItem
@@ -116,7 +118,8 @@ fun AssignItemsScreen(
                 Spacer(Modifier.height(8.dp))
                 StoreInfoCard(
                     description = uiState.description,
-                    amount = uiState.amountDisplay
+                    amount = uiState.amountDisplay,
+                    currencyCode = uiState.currency
                 )
                 Spacer(Modifier.height(18.dp))
             }
@@ -143,6 +146,7 @@ fun AssignItemsScreen(
 
                 ItemCard(
                     item = item,
+                    currencyCode = uiState.currency,
                     isExpanded = isExpanded,
                     assignedMembers = assignedMembers,
                     allMembers = uiState.members,
@@ -196,7 +200,7 @@ fun AssignItemsScreen(
 }
 
 @Composable
-private fun StoreInfoCard(description: String, amount: String) {
+private fun StoreInfoCard(description: String, amount: String, currencyCode: String = "USD") {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -211,8 +215,8 @@ private fun StoreInfoCard(description: String, amount: String) {
         )
         Spacer(Modifier.height(4.dp))
         val displayAmount = amount.toDoubleOrNull()?.let {
-            "$${String.format("%.2f", it)}"
-        } ?: "$$amount"
+            formatAmount((it * 100).toLong(), currencyCode)
+        } ?: "${SupportedCurrency.fromCode(currencyCode).symbol}$amount"
         Text(
             text = displayAmount,
             style = MaterialTheme.typography.headlineSmall,
@@ -264,6 +268,7 @@ private fun MemberChip(member: AssignMember) {
 @Composable
 private fun ItemCard(
     item: ReceiptItem,
+    currencyCode: String = "USD",
     isExpanded: Boolean,
     assignedMembers: List<AssignMember>,
     allMembers: List<AssignMember>,
@@ -314,7 +319,7 @@ private fun ItemCard(
             }
 
             Text(
-                text = item.formattedPrice,
+                text = item.formattedPrice(currencyCode),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground

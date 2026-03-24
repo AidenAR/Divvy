@@ -221,7 +221,7 @@ private fun ManageGroupCard(
             )
             Spacer(modifier = Modifier.width(12.dp))
             val balanceLabel = if (group.balanceCents >= 0) "you are owed" else "you owe"
-            val balanceValue = "$${String.format("%.2f", kotlin.math.abs(group.balanceCents) / 100.0)}"
+            val balanceValue = group.formattedBalance
             Text(
                 text = "$balanceValue • $balanceLabel",
                 style = MaterialTheme.typography.bodySmall,

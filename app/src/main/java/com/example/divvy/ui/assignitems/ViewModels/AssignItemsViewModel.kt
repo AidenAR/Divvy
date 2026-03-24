@@ -13,6 +13,7 @@ import com.example.divvy.backend.MemberRepository
 import com.example.divvy.backend.ScannedReceiptStore
 import com.example.divvy.models.ExpenseSplit
 import com.example.divvy.models.ReceiptItemRow
+import com.example.divvy.models.formatAmount
 import com.example.divvy.models.splitEqually
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
@@ -38,13 +39,17 @@ data class ReceiptItem(
     val name: String,
     val priceCents: Long
 ) {
+    fun formattedPrice(currencyCode: String = "USD"): String =
+        formatAmount(priceCents, currencyCode)
+
     val formattedPrice: String
-        get() = "$${String.format("%.2f", priceCents / 100.0)}"
+        get() = formatAmount(priceCents, "USD")
 }
 
 data class AssignItemsUiState(
     val description: String = "",
     val amountDisplay: String = "",
+    val currency: String = "USD",
     val members: List<AssignMember> = emptyList(),
     val items: List<ReceiptItem> = emptyList(),
     val assignments: Map<String, Set<String>> = emptyMap(),
@@ -77,6 +82,7 @@ class AssignItemsViewModel @AssistedInject constructor(
     @Assisted("amountDisplay") private val amountDisplay: String,
     @Assisted("description") private val description: String,
     @Assisted("paidByUserId") private val paidByUserId: String,
+    @Assisted("currency") private val currency: String,
     private val authRepository: AuthRepository,
     private val memberRepository: MemberRepository,
     private val expensesRepository: ExpensesRepository,
@@ -92,7 +98,8 @@ class AssignItemsViewModel @AssistedInject constructor(
             @Assisted("groupId") groupId: String,
             @Assisted("amountDisplay") amountDisplay: String,
             @Assisted("description") description: String,
-            @Assisted("paidByUserId") paidByUserId: String
+            @Assisted("paidByUserId") paidByUserId: String,
+            @Assisted("currency") currency: String
         ): AssignItemsViewModel
     }
 
@@ -100,6 +107,7 @@ class AssignItemsViewModel @AssistedInject constructor(
         AssignItemsUiState(
             description = description.ifBlank { "Receipt" },
             amountDisplay = amountDisplay,
+            currency = currency,
             paidByUserId = paidByUserId,
             isLoading = true
         )
@@ -219,7 +227,7 @@ class AssignItemsViewModel @AssistedInject constructor(
                 groupId = groupId,
                 description = state.description,
                 amountCents = amountCents,
-                currency = "USD",
+                currency = currency,
                 splitMethod = "BY_ITEM",
                 paidByUserId = state.paidByUserId,
                 splits = splits

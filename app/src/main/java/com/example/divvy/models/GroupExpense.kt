@@ -19,7 +19,8 @@ data class GroupExpense(
     @SerialName("amount_cents")      val amountCents: Long,
     @SerialName("paid_by_user_id")   val paidByUserId: String,
     val splits: List<ExpenseSplit> = emptyList(),
-    @SerialName("created_at")        val createdAt: String
+    @SerialName("created_at")        val createdAt: String,
+    val currency: String = "USD"
 )
 
 /**

@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.example.divvy.components.GroupIcon
+import com.example.divvy.models.formatAmount
 import com.example.divvy.ui.analytics.ViewModels.AnalyticsViewModel
 import com.example.divvy.ui.analytics.ViewModels.GroupSpending
 import com.example.divvy.ui.theme.NegativeRed
@@ -259,8 +260,8 @@ private fun GroupSpendingRow(
         animationSpec = tween(durationMillis = 600),
         label = "bar"
     )
-    val dollars = group.yourShareCents / 100.0
-    val totalDollars = group.totalCents / 100.0
+    val formattedShare = formatAmount(group.yourShareCents, "USD")
+    val formattedTotal = formatAmount(group.totalCents, "USD")
 
     Column(
         modifier = Modifier
@@ -295,13 +296,13 @@ private fun GroupSpendingRow(
                     color = MaterialTheme.colorScheme.onBackground
                 )
                 Text(
-                    text = "Group total: $${String.format("%.2f", totalDollars)}",
+                    text = "Group total: $formattedTotal",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Text(
-                text = "$${String.format("%.2f", dollars)}",
+                text = formattedShare,
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.primary
             )
