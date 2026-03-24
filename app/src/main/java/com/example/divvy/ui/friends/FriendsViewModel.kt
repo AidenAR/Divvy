@@ -13,6 +13,7 @@ import com.example.divvy.backend.DataResult
 import com.example.divvy.components.GroupIcon
 import com.example.divvy.models.ContactEntry
 import com.example.divvy.models.ContactType
+import com.example.divvy.models.FriendBalance
 import com.example.divvy.models.Group
 import com.example.divvy.models.ProfileRow
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -31,6 +32,7 @@ data class ContactOnDivvy(
 
 data class FriendsUiState(
     val friends: List<ContactEntry.DivvyFriend> = emptyList(),
+    val friendBalances: List<FriendBalance> = emptyList(),
     val deviceContacts: List<ContactEntry.DeviceContact> = emptyList(),
     val searchQuery: String = "",
     val selectedKeys: Set<String> = emptySet(),
@@ -84,16 +86,34 @@ class FriendsViewModel @Inject constructor(
         loadGroups()
     }
 
+    fun refresh() {
+        loadFriends()
+        loadGroups()
+    }
+
     private fun loadFriends() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             runCatching {
-                friendsRepository.getFriendsWithGroups()
-            }.onSuccess { friendsWithGroups ->
-                val friends = friendsWithGroups.map { fwg ->
-                    ContactEntry.DivvyFriend(profile = fwg.profile, sharedGroups = fwg.sharedGroups)
-                }.sortedBy { it.displayName.lowercase() }
-                _uiState.update { it.copy(friends = friends, isLoading = false) }
+                friendsRepository.getFriendsBalances()
+            }.onSuccess { balances ->
+                val sortedBalances = balances.sortedBy { it.displayName.lowercase() }
+                // Derive ContactEntry.DivvyFriend list for backward compat (selection, contacts dedup)
+                val friends = sortedBalances.map { fb ->
+                    ContactEntry.DivvyFriend(
+                        profile = ProfileRow(
+                            id = fb.userId,
+                            firstName = fb.firstName.orEmpty(),
+                            lastName = fb.lastName.orEmpty(),
+                            email = fb.email,
+                            phone = fb.phone
+                        ),
+                        sharedGroups = fb.groupBalances.map { gb ->
+                            Group(id = gb.groupId, name = gb.groupName)
+                        }.distinctBy { it.id }
+                    )
+                }
+                _uiState.update { it.copy(friendBalances = sortedBalances, friends = friends, isLoading = false) }
                 if (_uiState.value.hasContactsPermission) {
                     loadDeviceContacts()
                     mergeContactsOnDivvy()
@@ -257,9 +277,10 @@ class FriendsViewModel @Inject constructor(
                 loadDeviceContacts()
             }
 
-            // If no match, close sheet after save
+            // If no match, close sheet after save and refresh friends
             if (matchedProfile == null) {
                 _uiState.update { it.copy(showAddContactSheet = false) }
+                loadFriends()
             }
         }
     }
@@ -483,6 +504,24 @@ class FriendsViewModel @Inject constructor(
         val query = _uiState.value.searchQuery.lowercase()
         if (query.isBlank()) return _uiState.value.friends
         return _uiState.value.friends.filter { it.displayName.lowercase().contains(query) }
+    }
+
+    fun filteredFriendsWithBalances(): List<FriendBalance> {
+        val query = _uiState.value.searchQuery.lowercase()
+        val all = _uiState.value.friendBalances
+        val filtered = if (query.isBlank()) all
+            else all.filter { it.displayName.lowercase().contains(query) }
+        return filtered.filter { !it.isSettledUp }
+            .sortedBy { it.displayName.lowercase() }
+    }
+
+    fun filteredSettledUpFriends(): List<FriendBalance> {
+        val query = _uiState.value.searchQuery.lowercase()
+        val all = _uiState.value.friendBalances
+        val filtered = if (query.isBlank()) all
+            else all.filter { it.displayName.lowercase().contains(query) }
+        return filtered.filter { it.isSettledUp }
+            .sortedBy { it.displayName.lowercase() }
     }
 
     fun filteredDeviceContacts(): List<ContactEntry.DeviceContact> {

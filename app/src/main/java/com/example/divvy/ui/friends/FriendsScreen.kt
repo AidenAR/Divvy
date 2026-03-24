@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -12,13 +13,12 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -28,12 +28,21 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.ArrowDownward
+import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.GroupAdd
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
+import androidx.compose.material.icons.rounded.PersonAdd
+import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -43,12 +52,20 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -56,9 +73,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.example.divvy.models.ContactEntry
+import com.example.divvy.components.GroupIcon
+import com.example.divvy.models.FriendBalance
+import com.example.divvy.models.formatAmount
+import com.example.divvy.ui.theme.Amber
+import com.example.divvy.ui.theme.AvatarColors
+import com.example.divvy.ui.theme.Charcoal
+import com.example.divvy.ui.theme.NegativeRed
+import com.example.divvy.ui.theme.PositiveGreen
+import kotlin.math.abs
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FriendsScreen(
     viewModel: FriendsViewModel = hiltViewModel(),
@@ -67,6 +92,18 @@ fun FriendsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+
+    // Refresh data each time the screen is resumed
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.refresh()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     // Handle navigation after group creation
     LaunchedEffect(uiState.createdGroupId) {
@@ -113,8 +150,11 @@ fun FriendsScreen(
         }
     }
 
-    val filteredFriends = viewModel.filteredFriends()
+    val friendsWithBalances = viewModel.filteredFriendsWithBalances()
+    val settledUpFriends = viewModel.filteredSettledUpFriends()
     val filteredDeviceContacts = viewModel.filteredDeviceContacts()
+    var settledUpExpanded by remember { mutableStateOf(false) }
+    var notOnDivvyExpanded by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -123,6 +163,24 @@ fun FriendsScreen(
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background
                 ),
+                actions = {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary)
+                            .clickable { viewModel.onShowAddContactSheet() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Add,
+                            contentDescription = "Add contact",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                }
             )
         },
         containerColor = MaterialTheme.colorScheme.background
@@ -136,7 +194,7 @@ fun FriendsScreen(
             OutlinedTextField(
                 value = uiState.searchQuery,
                 onValueChange = { viewModel.onSearchChange(it) },
-                placeholder = { Text("Search contacts...") },
+                placeholder = { Text("Search friends...") },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
@@ -158,51 +216,79 @@ fun FriendsScreen(
             }
 
             LazyColumn(modifier = Modifier.fillMaxSize()) {
-                // Friends section
-                if (filteredFriends.isNotEmpty()) {
-                    item {
-                        SectionHeader("Friends")
-                    }
-                    items(filteredFriends, key = { it.selectionKey }) { friend ->
-                        ContactRow(
-                            name = friend.displayName,
-                            subtitle = null,
-                            initials = (friend.profile.firstName?.take(1).orEmpty() + friend.profile.lastName?.take(1).orEmpty()).ifBlank { "?" },
+                // Friends with outstanding balances
+                if (friendsWithBalances.isNotEmpty()) {
+                    items(friendsWithBalances, key = { it.selectionKey }) { friend ->
+                        val index = uiState.friendBalances.indexOfFirst { it.userId == friend.userId }
+                        FriendBalanceCard(
+                            friend = friend,
+                            avatarColor = AvatarColors[abs(index) % AvatarColors.size],
                             isSelected = friend.selectionKey in uiState.selectedKeys,
                             onClick = {
                                 if (uiState.selectedKeys.isNotEmpty()) {
                                     viewModel.onToggleSelection(friend.selectionKey)
                                 }
                             },
-                            onLongClick = { viewModel.onToggleSelection(friend.selectionKey) },
-                            groupBadges = friend.sharedGroups.map { it.name }
+                            onLongClick = { viewModel.onToggleSelection(friend.selectionKey) }
                         )
+                        Spacer(Modifier.height(6.dp))
                     }
                 }
 
-                // Device contacts section
+                // Settled-up friends (collapsible)
+                if (settledUpFriends.isNotEmpty()) {
+                    item {
+                        CollapsibleSectionHeader(
+                            title = "Settled Up",
+                            count = settledUpFriends.size,
+                            expanded = settledUpExpanded,
+                            onToggle = { settledUpExpanded = !settledUpExpanded }
+                        )
+                    }
+                    if (settledUpExpanded) {
+                        items(settledUpFriends, key = { it.selectionKey }) { friend ->
+                            val index = uiState.friendBalances.indexOfFirst { it.userId == friend.userId }
+                            FriendBalanceCard(
+                                friend = friend,
+                                avatarColor = AvatarColors[abs(index) % AvatarColors.size],
+                                isSelected = friend.selectionKey in uiState.selectedKeys,
+                                onClick = {
+                                    if (uiState.selectedKeys.isNotEmpty()) {
+                                        viewModel.onToggleSelection(friend.selectionKey)
+                                    }
+                                },
+                                onLongClick = { viewModel.onToggleSelection(friend.selectionKey) }
+                            )
+                            Spacer(Modifier.height(6.dp))
+                        }
+                    }
+                }
+
+                // Device contacts section (collapsible)
                 if (filteredDeviceContacts.isNotEmpty()) {
                     item {
-                        SectionHeader("Not on Divvy")
-                    }
-                    items(filteredDeviceContacts, key = { it.selectionKey }) { contact ->
-                        ContactRow(
-                            name = contact.name,
-                            subtitle = contact.contactValue,
-                            initials = contact.name.take(1).uppercase(),
-                            isSelected = false,
-                            onClick = null,
-                            trailingContent = {
-                                OutlinedButton(onClick = { viewModel.onInviteContact(context, contact) }) {
-                                    Text("Invite")
-                                }
-                            }
+                        CollapsibleSectionHeader(
+                            title = "Not on Divvy",
+                            count = filteredDeviceContacts.size,
+                            expanded = notOnDivvyExpanded,
+                            onToggle = { notOnDivvyExpanded = !notOnDivvyExpanded }
                         )
+                    }
+                    if (notOnDivvyExpanded) {
+                        items(filteredDeviceContacts, key = { it.selectionKey }) { contact ->
+                            DeviceContactCard(
+                                name = contact.name,
+                                subtitle = contact.contactValue,
+                                initials = contact.name.take(1).uppercase(),
+                                onInvite = { viewModel.onInviteContact(context, contact) }
+                            )
+                            Spacer(Modifier.height(6.dp))
+                        }
                     }
                 }
 
                 // Empty state
-                if (filteredFriends.isEmpty() && filteredDeviceContacts.isEmpty() && !uiState.isLoading) {
+                if (friendsWithBalances.isEmpty() && settledUpFriends.isEmpty() && filteredDeviceContacts.isEmpty() && !uiState.isLoading) {
                     item {
                         Box(
                             modifier = Modifier
@@ -273,6 +359,36 @@ private fun SectionHeader(title: String) {
 }
 
 @Composable
+private fun CollapsibleSectionHeader(
+    title: String,
+    count: Int,
+    expanded: Boolean,
+    onToggle: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onToggle)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "$title ($count)",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f)
+        )
+        Icon(
+            imageVector = if (expanded) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
+            contentDescription = if (expanded) "Collapse" else "Expand",
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp)
+        )
+    }
+}
+
+@Composable
 private fun SelectionActionBar(
     count: Int,
     onAddToGroup: () -> Unit,
@@ -334,36 +450,202 @@ private fun SelectionActionBar(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun ContactRow(
-    name: String,
-    subtitle: String?,
-    initials: String,
+private fun FriendBalanceCard(
+    friend: FriendBalance,
+    avatarColor: Color,
     isSelected: Boolean,
-    onClick: (() -> Unit)?,
-    onLongClick: (() -> Unit)? = null,
-    groupBadges: List<String> = emptyList(),
-    trailingContent: @Composable (() -> Unit)? = null
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
 ) {
+    val surfaceColor = MaterialTheme.colorScheme.surface
+
+    // Determine status for badge
+    val nonZeroNets = friend.netBalancesByCurrency.filter { it.value != 0L }
+    val hasPositive = nonZeroNets.any { it.value > 0 }
+    val hasNegative = nonZeroNets.any { it.value < 0 }
+    val badgeIcon = when {
+        friend.isSettledUp -> Icons.Rounded.CheckCircle
+        hasPositive && hasNegative -> Icons.Rounded.SwapHoriz
+        hasPositive -> Icons.Rounded.ArrowDownward
+        else -> Icons.Rounded.ArrowUpward
+    }
+    val badgeColor = when {
+        friend.isSettledUp -> MaterialTheme.colorScheme.onSurfaceVariant
+        hasPositive && hasNegative -> Amber
+        hasPositive -> PositiveGreen
+        else -> NegativeRed
+    }
+
+    // Find the dominant balance (max abs value) for right-side display
+    val dominantEntry = nonZeroNets.maxByOrNull { abs(it.value) }
+    val hasMultipleCurrencies = nonZeroNets.size > 1
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(surfaceColor)
+            .combinedClickable(onLongClick = onLongClick, onClick = onClick)
+            .padding(14.dp)
+    ) {
+        // Top row: Avatar + Name + Amount
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Avatar with status badge
+            Box(modifier = Modifier.size(48.dp)) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(avatarColor),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = friend.initials.uppercase(),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp,
+                        color = Color.White
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .size(20.dp)
+                        .align(Alignment.BottomEnd)
+                        .offset(x = 2.dp, y = 2.dp)
+                        .clip(CircleShape)
+                        .background(badgeColor)
+                        .border(1.5.dp, surfaceColor, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = badgeIcon,
+                        contentDescription = null,
+                        modifier = Modifier.size(11.dp),
+                        tint = Color.White
+                    )
+                }
+            }
+
+            Spacer(Modifier.width(12.dp))
+
+            // Name
+            Text(
+                text = friend.displayName,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onBackground,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+
+            Spacer(Modifier.width(8.dp))
+
+            // Right side: amount or selection check
+            if (isSelected) {
+                Icon(
+                    Icons.Rounded.Check,
+                    contentDescription = "Selected",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+            } else if (friend.isSettledUp) {
+                Text(
+                    text = "settled up",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else if (dominantEntry != null) {
+                Column(horizontalAlignment = Alignment.End) {
+                    val isPositive = dominantEntry.value > 0
+                    val amountText = formatAmount(dominantEntry.value, dominantEntry.key) +
+                        if (hasMultipleCurrencies) "*" else ""
+                    Text(
+                        text = amountText,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isPositive) PositiveGreen else NegativeRed
+                    )
+                    Text(
+                        text = if (isPositive) "owes you" else "you owe",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+
+        // Per-group breakdown (below the top row, aligned with name)
+        if (friend.nonZeroGroupBalances.isNotEmpty()) {
+            Spacer(Modifier.height(4.dp))
+            Column(modifier = Modifier.padding(start = 6.dp)) {
+                friend.nonZeroGroupBalances.forEach { gb ->
+                    val isPositive = gb.balanceCents > 0
+                    val groupIcon = GroupIcon.entries.find { it.name == gb.groupIcon } ?: GroupIcon.Group
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(vertical = 1.dp)
+                    ) {
+                        Icon(
+                            imageVector = groupIcon.imageVector,
+                            contentDescription = null,
+                            modifier = Modifier.size(13.dp),
+                            tint = Amber
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            text = gb.groupName,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        Text(
+                            text = " · ${if (isPositive) "owes you" else "you owe"}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            maxLines = 1
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            text = formatAmount(gb.balanceCents, gb.currency),
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (isPositive) PositiveGreen else NegativeRed,
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DeviceContactCard(
+    name: String,
+    subtitle: String,
+    initials: String,
+    onInvite: () -> Unit
+) {
+    val avatarColor = MaterialTheme.colorScheme.primaryContainer
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .then(
-                when {
-                    onLongClick != null -> Modifier.combinedClickable(
-                        onLongClick = onLongClick,
-                        onClick = { onClick?.invoke() }
-                    )
-                    onClick != null -> Modifier.clickable { onClick() }
-                    else -> Modifier
-                }
-            )
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(horizontal = 16.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Avatar
-        val avatarColor = MaterialTheme.colorScheme.primaryContainer
+        // Avatar (no badge)
         Box(
             modifier = Modifier
                 .size(44.dp)
@@ -373,65 +655,48 @@ fun ContactRow(
         ) {
             Text(
                 text = initials.uppercase(),
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold,
+                fontWeight = FontWeight.Bold,
+                fontSize = 17.sp,
                 color = MaterialTheme.colorScheme.onPrimaryContainer
             )
         }
 
         Spacer(Modifier.width(12.dp))
 
-        // Name + subtitle + group badges
+        // Name + subtitle
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = name,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onBackground,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            if (subtitle != null) {
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            if (groupBadges.isNotEmpty()) {
-                Spacer(Modifier.height(4.dp))
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    groupBadges.forEach { groupName ->
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            tonalElevation = 0.dp
-                        ) {
-                            Text(
-                                text = groupName,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
-                }
-            }
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
 
-        // Trailing: selection check or custom content
-        if (trailingContent != null) {
-            trailingContent()
-        } else if (isSelected) {
+        Spacer(Modifier.width(8.dp))
+
+        // Invite icon button
+        IconButton(
+            onClick = onInvite,
+            modifier = Modifier.size(36.dp),
+            colors = IconButtonDefaults.iconButtonColors(
+                containerColor = Amber,
+                contentColor = Charcoal
+            )
+        ) {
             Icon(
-                Icons.Rounded.Check,
-                contentDescription = "Selected",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(24.dp)
+                Icons.Rounded.PersonAdd,
+                contentDescription = "Invite",
+                modifier = Modifier.size(18.dp)
             )
         }
     }

@@ -1,7 +1,9 @@
 package com.example.divvy.backend
 
 import com.example.divvy.components.GroupIcon
+import com.example.divvy.models.FriendBalance
 import com.example.divvy.models.Group
+import com.example.divvy.models.GroupBalance
 import com.example.divvy.models.ProfileRow
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
@@ -19,11 +21,26 @@ data class FriendWithGroups(
 
 interface FriendsRepository {
     suspend fun getFriendsWithGroups(): List<FriendWithGroups>
+    suspend fun getFriendsBalances(): List<FriendBalance>
     suspend fun getProfileByPhone(phone: String): ProfileRow?
     suspend fun getProfileByEmail(email: String): ProfileRow?
     suspend fun getProfilesByPhones(phones: List<String>): List<ProfileRow>
     suspend fun getProfilesByEmails(emails: List<String>): List<ProfileRow>
 }
+
+@Serializable
+private data class FriendBalanceRow(
+    @SerialName("user_id") val userId: String,
+    @SerialName("first_name") val firstName: String? = null,
+    @SerialName("last_name") val lastName: String? = null,
+    @SerialName("email") val email: String? = null,
+    @SerialName("phone") val phone: String? = null,
+    @SerialName("group_id") val groupId: String,
+    @SerialName("group_name") val groupName: String,
+    @SerialName("group_icon") val groupIcon: String? = null,
+    @SerialName("currency") val currency: String = "USD",
+    @SerialName("balance_cents") val balanceCents: Long = 0L
+)
 
 @Serializable
 private data class FriendGroupRow(
@@ -64,6 +81,32 @@ class SupabaseFriendsRepository @Inject constructor(
                         icon = row.groupIcon?.let { iconName ->
                             runCatching { GroupIcon.valueOf(iconName) }.getOrDefault(GroupIcon.Group)
                         } ?: GroupIcon.Group
+                    )
+                }
+            )
+        }
+    }
+
+    override suspend fun getFriendsBalances(): List<FriendBalance> {
+        val rows = supabaseClient.postgrest
+            .rpc("get_friends_balances")
+            .decodeList<FriendBalanceRow>()
+
+        return rows.groupBy { it.userId }.map { (userId, userRows) ->
+            val first = userRows.first()
+            FriendBalance(
+                userId = userId,
+                firstName = first.firstName,
+                lastName = first.lastName,
+                email = first.email,
+                phone = first.phone,
+                groupBalances = userRows.map { row ->
+                    GroupBalance(
+                        groupId = row.groupId,
+                        groupName = row.groupName,
+                        groupIcon = row.groupIcon,
+                        balanceCents = row.balanceCents,
+                        currency = row.currency
                     )
                 }
             )

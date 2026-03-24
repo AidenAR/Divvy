@@ -1,9 +1,15 @@
 package com.example.divvy.ui.friends
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -13,13 +19,18 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.divvy.models.ProfileRow
+import com.example.divvy.ui.groups.ViewModels.CreateGroupStep
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,55 +48,90 @@ fun AddContactSheet(
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = MaterialTheme.colorScheme.surface
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp)
+                .padding(horizontal = 20.dp)
                 .padding(bottom = 32.dp)
         ) {
             Text(
-                text = "Add Contact",
+                text = "Create Contact",
                 style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold
+                color = MaterialTheme.colorScheme.onBackground,
             )
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-            OutlinedTextField(
+            Text(
+                text = "Contact Name",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            TextField(
                 value = name,
                 onValueChange = onNameChange,
-                label = { Text("Name") },
+                singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
-                singleLine = true
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    disabledIndicatorColor = Color.Transparent
+                )
             )
+            Spacer(modifier = Modifier.height(20.dp))
 
-            Spacer(Modifier.height(12.dp))
-
-            OutlinedTextField(
+            Text(
+                text = "Phone Number",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            TextField(
                 value = phone,
                 onValueChange = onPhoneChange,
-                label = { Text("Phone") },
+                singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
-                singleLine = true
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    disabledIndicatorColor = Color.Transparent
+                )
             )
+            Spacer(modifier = Modifier.height(20.dp))
 
-            Spacer(Modifier.height(12.dp))
-
-            OutlinedTextField(
+            Text(
+                text = "Email",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            TextField(
                 value = email,
                 onValueChange = onEmailChange,
-                label = { Text("Email") },
+                singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
-                singleLine = true
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    disabledIndicatorColor = Color.Transparent
+                )
             )
 
             if (matchedProfile != null) {
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(20.dp))
                 Text(
                     text = "Already on Divvy! ${matchedProfile.firstName.orEmpty()} ${matchedProfile.lastName.orEmpty()}".trim(),
                     style = MaterialTheme.typography.bodyMedium,
@@ -94,21 +140,36 @@ fun AddContactSheet(
                 )
             }
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-            Button(
-                onClick = onSave,
-                enabled = name.isNotBlank() && !isAdding,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                if (isAdding) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.height(20.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                } else {
-                    Text("Save")
+            val canCreate = name.isNotBlank() && (phone.isNotBlank() || email.isNotBlank())
+
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(52.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(
+                            if (canCreate && !isAdding) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.outline
+                        )
+                        .clickable(enabled = canCreate && !isAdding) { onSave() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isAdding) {
+                        CircularProgressIndicator(
+                            color = Color.White,
+                            modifier = Modifier.size(22.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text(
+                            text = "Create",
+                            color = Color.White,
+                            style = MaterialTheme.typography.titleSmall,
+                        )
+                    }
                 }
             }
         }
