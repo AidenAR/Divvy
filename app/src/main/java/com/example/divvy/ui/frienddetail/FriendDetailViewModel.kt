@@ -90,13 +90,23 @@ class FriendDetailViewModel @AssistedInject constructor(
 
     fun onAddExpense() {
         viewModelScope.launch {
+            // Collect all group IDs to check: from balances + all user groups
+            val allGroupIds = sharedGroupIds.toMutableSet()
+            try {
+                groupRepository.refreshGroups()
+                val groups = groupRepository.listGroups().first { it is DataResult.Success }
+                if (groups is DataResult.Success) {
+                    allGroupIds.addAll(groups.data.map { it.id })
+                }
+            } catch (_: Exception) { }
+
             // Look for an existing 1-on-1 group (exactly 2 members: me + friend)
             var existing1on1GroupId: String? = null
-            for (groupId in sharedGroupIds) {
+            for (groupId in allGroupIds) {
                 try {
                     memberRepository.refreshMembers(groupId)
                     val members = memberRepository.getMembers(groupId).first()
-                    if (members.size == 1) { // 1 other member besides current user
+                    if (members.size == 2 && members.any { it.userId == friendUserId }) {
                         existing1on1GroupId = groupId
                         break
                     }
