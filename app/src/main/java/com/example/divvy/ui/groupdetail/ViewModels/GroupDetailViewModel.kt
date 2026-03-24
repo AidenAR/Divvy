@@ -228,15 +228,25 @@ class GroupDetailViewModel @AssistedInject constructor(
             .map { expense ->
                 val paidByCurrentUser = expense.paidByUserId == myUserId
 
-                // RATIONALE: The activity feed should show YOUR share of the expense if someone else paid,
-                // or the TOTAL amount if you paid (showing what's owed to you).
                 val displayAmountCents = if (paidByCurrentUser) {
-                    // Show the amount others owe you (Total - Your Share)
-                    val myShare = expense.splits.find { it.userId == myUserId }?.amountCents ?: 0L
-                    expense.amountCents - myShare
+                    // I paid: others owe me (total − my effective share).
+                    // If my split is covered by someone, my effective share is 0.
+                    val myEffectiveShare = expense.splits
+                        .find { it.userId == myUserId }
+                        ?.let { if (it.isCoveredBy != null) 0L else it.amountCents }
+                        ?: 0L
+                    expense.amountCents - myEffectiveShare
                 } else {
-                    // Show the amount you specifically owe for this expense
-                    expense.splits.find { it.userId == myUserId }?.amountCents ?: 0L
+                    // Someone else paid: I owe my own share (0 if covered)
+                    // plus any other members' shares that I'm covering.
+                    val myDirectShare = expense.splits
+                        .find { it.userId == myUserId }
+                        ?.let { if (it.isCoveredBy != null) 0L else it.amountCents }
+                        ?: 0L
+                    val coveringAmount = expense.splits
+                        .filter { it.isCoveredBy == myUserId }
+                        .sumOf { it.amountCents }
+                    myDirectShare + coveringAmount
                 }
 
                 ActivityItem(
