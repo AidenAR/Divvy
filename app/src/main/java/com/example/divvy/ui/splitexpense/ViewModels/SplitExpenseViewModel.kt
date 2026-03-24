@@ -16,6 +16,7 @@ import com.example.divvy.models.Group
 import com.example.divvy.models.GroupMember
 import com.example.divvy.models.ProfileRow
 import com.example.divvy.models.splitEqually
+import android.util.Log
 import com.example.divvy.ui.groups.ViewModels.CreateGroupStep
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
@@ -61,7 +62,9 @@ data class SplitExpenseUiState(
     val isLoadingProfiles: Boolean = false,
     val isCreatingGroup: Boolean = false,
     val createErrorMessage: String? = null,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val coveredBy: Map<String, String> = emptyMap(),
+    val expandedCoveringMemberId: String? = null,
 ) {
     val paidByName: String
         get() = members.firstOrNull { it.id == paidByUserId }?.name ?: "You"
@@ -197,6 +200,26 @@ class SplitExpenseViewModel @Inject constructor(
         _uiState.update { it.copy(paidByUserId = userId, errorMessage = null) }
     }
 
+    fun onToggleCoveringForMember(memberId: String) {
+        _uiState.update {
+            it.copy(
+                expandedCoveringMemberId =
+                    if (it.expandedCoveringMemberId == memberId) null else memberId
+            )
+        }
+    }
+
+    fun onSetCovering(coveredUserId: String, covererUserId: String?) {
+        _uiState.update { state ->
+            val next = if (covererUserId != null) {
+                state.coveredBy + (coveredUserId to covererUserId)
+            } else {
+                state.coveredBy - coveredUserId
+            }
+            state.copy(coveredBy = next, expandedCoveringMemberId = null)
+        }
+    }
+
     fun onShowCreateGroup() {
         _uiState.update {
             it.copy(
@@ -328,7 +351,11 @@ class SplitExpenseViewModel @Inject constructor(
             try {
                 // Ensure the list is derived from the latest state, ensuring all members are included
                 val allUserIds = state.members.map { it.id }
-                val splits = splitEqually(amountCents, allUserIds)
+                Log.d("SplitExpense", "coveredBy map: ${state.coveredBy}")
+                val splits = splitEqually(amountCents, allUserIds).map { split ->
+                    split.copy(isCoveredBy = state.coveredBy[split.userId])
+                }
+                Log.d("SplitExpense", "splits with covering: ${splits.map { "${it.userId} -> isCoveredBy=${it.isCoveredBy}" }}")
 
                 expensesRepository.createExpenseWithSplits(
                     groupId = groupId,

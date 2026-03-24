@@ -1,5 +1,6 @@
 package com.example.divvy.ui.splitpercentage.Views
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -25,6 +26,8 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.rounded.CardGiftcard
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -42,11 +45,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.divvy.ui.splitpercentage.ViewModels.PercentageMember
@@ -155,9 +160,19 @@ fun SplitByPercentageScreen(
                     member = member,
                     percentage = uiState.percentages[member.id] ?: "",
                     dollarAmount = uiState.dollarAmountFor(member.id),
+                    effectiveDollarAmount = uiState.effectiveDollarAmountFor(member.id),
                     onPercentageChange = { value ->
                         viewModel.onPercentageChange(member.id, value)
-                    }
+                    },
+                    covererName = uiState.coveredBy[member.id]?.let { coverId ->
+                        uiState.members.firstOrNull { it.id == coverId }?.name
+                    },
+                    isExpanded = uiState.expandedCoveringMemberId == member.id,
+                    allMembers = uiState.members,
+                    onToggleCovering = { viewModel.onToggleCoveringForMember(member.id) },
+                    onSetCovering = { covererUserId ->
+                        viewModel.onSetCovering(member.id, covererUserId)
+                    },
                 )
                 Spacer(Modifier.height(8.dp))
             }
@@ -299,93 +314,171 @@ private fun MemberPercentageCard(
     member: PercentageMember,
     percentage: String,
     dollarAmount: String,
-    onPercentageChange: (String) -> Unit
+    effectiveDollarAmount: String,
+    onPercentageChange: (String) -> Unit,
+    covererName: String?,
+    isExpanded: Boolean,
+    allMembers: List<PercentageMember>,
+    onToggleCovering: () -> Unit,
+    onSetCovering: (covererUserId: String?) -> Unit,
 ) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
             .background(MaterialTheme.colorScheme.surface)
-            .padding(horizontal = 16.dp, vertical = 14.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(member.color),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = member.name.first().uppercase(),
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp
-            )
-        }
-
-        Spacer(Modifier.width(14.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = member.name,
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                text = dollarAmount,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .clip(RoundedCornerShape(10.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant)
-                .padding(horizontal = 12.dp, vertical = 8.dp)
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)
         ) {
-            BasicTextField(
-                value = percentage,
-                onValueChange = onPercentageChange,
-                textStyle = TextStyle(
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(member.color),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = member.name.first().uppercase(),
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+            }
+
+            Spacer(Modifier.width(14.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = member.name,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Spacer(Modifier.height(2.dp))
+                if (covererName != null) {
+                    Text(
+                        text = dollarAmount,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textDecoration = TextDecoration.LineThrough,
+                    )
+                    Text(
+                        text = "Covered by $covererName",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                } else {
+                    Text(
+                        text = effectiveDollarAmount,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            if (covererName != null) {
+                Icon(
+                    imageVector = Icons.Rounded.Close,
+                    contentDescription = "Remove covering",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .size(20.dp)
+                        .clip(CircleShape)
+                        .clickable { onSetCovering(null) }
+                )
+                Spacer(Modifier.width(8.dp))
+            } else {
+                Icon(
+                    imageVector = Icons.Rounded.CardGiftcard,
+                    contentDescription = "Cover this share",
+                    tint = if (isExpanded) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .size(20.dp)
+                        .clickable(onClick = onToggleCovering)
+                )
+                Spacer(Modifier.width(8.dp))
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                BasicTextField(
+                    value = percentage,
+                    onValueChange = onPercentageChange,
+                    textStyle = TextStyle(
+                        fontFamily = DmSansFamily,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        textAlign = TextAlign.End
+                    ),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    modifier = Modifier.width(48.dp),
+                    decorationBox = { innerTextField ->
+                        Box(contentAlignment = Alignment.CenterEnd) {
+                            if (percentage.isEmpty()) {
+                                Text(
+                                    text = "0",
+                                    fontFamily = DmSansFamily,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.outline,
+                                    textAlign = TextAlign.End
+                                )
+                            }
+                            innerTextField()
+                        }
+                    }
+                )
+                Spacer(Modifier.width(2.dp))
+                Text(
+                    text = "%",
                     fontFamily = DmSansFamily,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    textAlign = TextAlign.End
-                ),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                singleLine = true,
-                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                modifier = Modifier.width(48.dp),
-                decorationBox = { innerTextField ->
-                    Box(contentAlignment = Alignment.CenterEnd) {
-                        if (percentage.isEmpty()) {
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        AnimatedVisibility(visible = isExpanded) {
+            Column(
+                modifier = Modifier.padding(start = 70.dp, end = 16.dp, bottom = 14.dp)
+            ) {
+                Text(
+                    text = "Who's covering ${member.name}'s share?",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    allMembers.filter { it.id != member.id }.forEach { candidate ->
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .clickable { onSetCovering(candidate.id) }
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
                             Text(
-                                text = "0",
-                                fontFamily = DmSansFamily,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.outline,
-                                textAlign = TextAlign.End
+                                text = candidate.name,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onBackground,
                             )
                         }
-                        innerTextField()
                     }
                 }
-            )
-            Spacer(Modifier.width(2.dp))
-            Text(
-                text = "%",
-                fontFamily = DmSansFamily,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            }
         }
     }
 }

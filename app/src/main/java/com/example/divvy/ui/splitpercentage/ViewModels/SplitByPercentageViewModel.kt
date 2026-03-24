@@ -36,7 +36,9 @@ data class SplitByPercentageUiState(
     val percentages: Map<String, String> = emptyMap(),
     val paidByUserId: String = "",
     val isLoading: Boolean = false,
-    val isSaving: Boolean = false
+    val isSaving: Boolean = false,
+    val coveredBy: Map<String, String> = emptyMap(),
+    val expandedCoveringMemberId: String? = null,
 ) {
     val totalPercentage: Double
         get() = percentages.values.sumOf { it.toDoubleOrNull() ?: 0.0 }
@@ -48,6 +50,19 @@ data class SplitByPercentageUiState(
         val total = amountDisplay.toDoubleOrNull() ?: 0.0
         val pct = percentages[memberId]?.toDoubleOrNull() ?: 0.0
         return "$${String.format("%.2f", total * pct / 100.0)}"
+    }
+
+    fun effectiveDollarAmountFor(memberId: String): String {
+        val total = amountDisplay.toDoubleOrNull() ?: 0.0
+        val ownPct = percentages[memberId]?.toDoubleOrNull() ?: 0.0
+        val ownAmount = total * ownPct / 100.0
+        val coveredAmount = coveredBy.entries
+            .filter { it.value == memberId }
+            .sumOf { (coveredId, _) ->
+                val pct = percentages[coveredId]?.toDoubleOrNull() ?: 0.0
+                total * pct / 100.0
+            }
+        return "$${String.format("%.2f", ownAmount + coveredAmount)}"
     }
 }
 
@@ -138,6 +153,26 @@ class SplitByPercentageViewModel @AssistedInject constructor(
         }
     }
 
+    fun onToggleCoveringForMember(memberId: String) {
+        _uiState.update {
+            it.copy(
+                expandedCoveringMemberId =
+                    if (it.expandedCoveringMemberId == memberId) null else memberId
+            )
+        }
+    }
+
+    fun onSetCovering(coveredUserId: String, covererUserId: String?) {
+        _uiState.update { state ->
+            val next = if (covererUserId != null) {
+                state.coveredBy + (coveredUserId to covererUserId)
+            } else {
+                state.coveredBy - coveredUserId
+            }
+            state.copy(coveredBy = next, expandedCoveringMemberId = null)
+        }
+    }
+
     fun onDone() {
         val state = _uiState.value
         if (!state.isValid) return
@@ -145,7 +180,9 @@ class SplitByPercentageViewModel @AssistedInject constructor(
         val percentages = state.members.associate { m ->
             m.id to (state.percentages[m.id]?.toDoubleOrNull() ?: 0.0)
         }
-        val splits = splitByPercentage(amountCents, percentages)
+        val splits = splitByPercentage(amountCents, percentages).map { split ->
+            split.copy(isCoveredBy = state.coveredBy[split.userId])
+        }
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true) }
             expensesRepository.createExpenseWithSplits(
