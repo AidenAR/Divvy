@@ -16,5 +16,6 @@ data class ActivityFeedItem(
     @SerialName("actor_name") val actorName: String,
     @SerialName("actor_avatar_url") val actorAvatarUrl: String? = null,
     @SerialName("target_name") val targetName: String? = null,
-    @SerialName("created_at") val createdAt: String
+    @SerialName("created_at") val createdAt: String,
+    val currency: String = "USD"
 )

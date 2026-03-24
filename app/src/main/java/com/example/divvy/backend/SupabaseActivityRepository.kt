@@ -22,9 +22,16 @@ class SupabaseActivityRepository @Inject constructor(
 
     override suspend fun refreshActivityFeed() {
         try {
-            val items = supabaseClient.postgrest
-                .rpc("get_global_activity_feed")
-                .decodeList<ActivityFeedItem>()
+            val items = try {
+                supabaseClient.postgrest
+                    .rpc("get_global_activity_feed_v2")
+                    .decodeList<ActivityFeedItem>()
+            } catch (_: Exception) {
+                // Fallback to original function if _v2 is not available
+                supabaseClient.postgrest
+                    .rpc("get_global_activity_feed")
+                    .decodeList<ActivityFeedItem>()
+            }
             _activityFeed.emit(DataResult.Success(items))
         } catch (e: Exception) {
             _activityFeed.emit(DataResult.Error("Failed to load activity feed", e))

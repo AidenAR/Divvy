@@ -62,6 +62,7 @@ import coil.compose.AsyncImage
 import com.example.divvy.R
 import com.example.divvy.components.GroupIcon
 import com.example.divvy.models.ActivityFeedItem
+import com.example.divvy.models.formatAmount
 import com.example.divvy.ui.creategroup.CreateGroupSheet
 import com.example.divvy.ui.home.ViewModels.HomeViewModel
 import com.example.divvy.ui.groups.ViewModels.CreateGroupStep
@@ -445,9 +446,8 @@ private fun ActivityFeedCard(item: ActivityFeedItem) {
 
         if (item.amountCents > 0) {
             Spacer(modifier = Modifier.width(8.dp))
-            val dollars = item.amountCents / 100.0
             Text(
-                text = "$${String.format("%.2f", dollars)}",
+                text = formatAmount(item.amountCents, item.currency),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground

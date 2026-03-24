@@ -14,9 +14,11 @@ import kotlinx.coroutines.launch
 
 data class SettlementState(
     val expandedMemberId: String? = null,
+    val expandedCurrency: String? = null,
     val settleMode: SettleMode? = null,
     val settleAmount: String = "",
-    val isSettling: Boolean = false
+    val isSettling: Boolean = false,
+    val currency: String = "USD"
 )
 
 class SettlementDelegate(
@@ -31,23 +33,23 @@ class SettlementDelegate(
     private val _state = MutableStateFlow(SettlementState())
     val state: StateFlow<SettlementState> = _state.asStateFlow()
 
-    fun onMemberClick(userId: String) {
+    fun onMemberClick(userId: String, currency: String) {
         _state.update { s ->
-            if (s.expandedMemberId == userId)
-                s.copy(expandedMemberId = null, settleMode = null, settleAmount = "")
+            if (s.expandedMemberId == userId && s.expandedCurrency == currency)
+                s.copy(expandedMemberId = null, expandedCurrency = null, settleMode = null, settleAmount = "")
             else
-                s.copy(expandedMemberId = userId, settleMode = null, settleAmount = "")
+                s.copy(expandedMemberId = userId, expandedCurrency = currency, settleMode = null, settleAmount = "", currency = currency)
         }
     }
 
-    fun onSettleModeSelected(mode: SettleMode) {
+    fun onSettleModeSelected(mode: SettleMode, currency: String = "USD") {
         _state.update { s ->
+            val balance = getMemberBalances()
+                .find { it.userId == s.expandedMemberId && it.currency == currency }?.balanceCents ?: 0L
             val amount = if (mode == SettleMode.Fully) {
-                val balance = getMemberBalances()
-                    .find { it.userId == s.expandedMemberId }?.balanceCents ?: 0L
                 String.format("%.2f", kotlin.math.abs(balance) / 100.0)
             } else ""
-            s.copy(settleMode = mode, settleAmount = amount)
+            s.copy(settleMode = mode, settleAmount = amount, currency = currency)
         }
     }
 
@@ -65,7 +67,8 @@ class SettlementDelegate(
             (it * 100).toLong()
         }
         if (amountCents <= 0) return
-        val balance = getMemberBalances().find { it.userId == userId }?.balanceCents ?: return
+        val balance = getMemberBalances()
+            .find { it.userId == userId && it.currency == s.currency }?.balanceCents ?: return
 
         val (paidBy, splitUserId) = if (balance < 0)
             Pair(myUserId, userId) else Pair(userId, myUserId)
@@ -76,7 +79,7 @@ class SettlementDelegate(
                 groupId = groupId,
                 description = "Settlement",
                 amountCents = amountCents,
-                currency = "USD",
+                currency = s.currency,
                 splitMethod = "SETTLEMENT",
                 paidByUserId = paidBy,
                 splits = listOf(ExpenseSplit(splitUserId, amountCents))

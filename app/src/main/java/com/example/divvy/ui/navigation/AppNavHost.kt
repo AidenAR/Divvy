@@ -125,14 +125,14 @@ fun AppNavHost(
         composable<AppDestination.SplitExpense> {
             SplitExpenseScreen(
                 onBack = { navController.popBackStack() },
-                onNavigateToAssignItems = { groupId, amount, description, paidByUserId ->
+                onNavigateToAssignItems = { groupId, amount, description, paidByUserId, currency ->
                     navController.navigate(
-                        AppDestination.AssignItems(groupId, amount, description, paidByUserId)
+                        AppDestination.AssignItems(groupId, amount, description, paidByUserId, currency)
                     )
                 },
-                onNavigateToSplitByPercentage = { groupId, amount, description, paidByUserId ->
+                onNavigateToSplitByPercentage = { groupId, amount, description, paidByUserId, currency ->
                     navController.navigate(
-                        AppDestination.SplitByPercentage(groupId, amount, description, paidByUserId)
+                        AppDestination.SplitByPercentage(groupId, amount, description, paidByUserId, currency)
                     )
                 }
             )
@@ -143,7 +143,7 @@ fun AppNavHost(
                 SplitByPercentageViewModel, SplitByPercentageViewModel.Factory
             >(
                 creationCallback = { factory ->
-                    factory.create(dest.groupId, dest.amountDisplay, dest.description, dest.paidByUserId)
+                    factory.create(dest.groupId, dest.amountDisplay, dest.description, dest.paidByUserId, dest.currency)
                 }
             )
             SplitByPercentageScreen(
@@ -163,7 +163,7 @@ fun AppNavHost(
                 AssignItemsViewModel, AssignItemsViewModel.Factory
             >(
                 creationCallback = { factory ->
-                    factory.create(dest.groupId, dest.amountDisplay, dest.description, dest.paidByUserId)
+                    factory.create(dest.groupId, dest.amountDisplay, dest.description, dest.paidByUserId, dest.currency)
                 }
             )
             AssignItemsScreen(

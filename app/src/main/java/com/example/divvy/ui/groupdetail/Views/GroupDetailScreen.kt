@@ -69,6 +69,8 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.example.divvy.components.GroupIcon
 import com.example.divvy.models.ActivityItem
 import com.example.divvy.models.MemberBalance
+import com.example.divvy.models.SupportedCurrency
+import com.example.divvy.models.formatAmount
 import com.example.divvy.ui.groupdetail.ViewModels.GroupDetailViewModel
 import com.example.divvy.ui.groupdetail.ViewModels.SettleMode
 import com.example.divvy.ui.theme.AvatarColors
@@ -164,7 +166,10 @@ fun GroupDetailScreen(
 
                 item {
                     Spacer(modifier = Modifier.height(8.dp))
-                    BalanceSummaryCard(balanceCents = uiState.group.balanceCents)
+                    BalanceSummaryCard(
+                        balanceCents = uiState.group.balanceCents,
+                        formattedBalance = uiState.group.formattedBalance
+                    )
                     Spacer(modifier = Modifier.height(24.dp))
                 }
 
@@ -173,7 +178,7 @@ fun GroupDetailScreen(
                     Spacer(modifier = Modifier.height(10.dp))
                 }
                 items(uiState.memberBalances) { mb ->
-                    val isExpanded = uiState.expandedMemberId == mb.userId
+                    val isExpanded = uiState.expandedMemberId == mb.userId && uiState.expandedCurrency == mb.currency
                     MemberBalanceCard(
                         memberBalance  = mb,
                         avatarColor    = AvatarColors[uiState.memberBalances.indexOf(mb) % AvatarColors.size],
@@ -181,8 +186,8 @@ fun GroupDetailScreen(
                         settleMode     = uiState.settleMode,
                         settleAmount   = uiState.settleAmount,
                         isSettling     = uiState.isSettling,
-                        onCardClick    = { viewModel.onMemberClick(mb.userId) },
-                        onModeSelect   = viewModel::onSettleModeSelected,
+                        onCardClick    = { viewModel.onMemberClick(mb.userId, mb.currency) },
+                        onModeSelect   = { mode -> viewModel.onSettleModeSelected(mode, mb.currency) },
                         onAmountChange = viewModel::onSettleAmountChange,
                         onConfirm      = { viewModel.onConfirmSettle(mb.userId) }
                     )
@@ -545,12 +550,11 @@ private fun ManageActionsSheet(
 }
 
 @Composable
-private fun BalanceSummaryCard(balanceCents: Long) {
+private fun BalanceSummaryCard(balanceCents: Long, formattedBalance: String = "") {
     val isOwed = balanceCents >= 0
     val bgColor = if (isOwed) PositiveGreen else NegativeRed
     val label = if (isOwed) "You are owed" else "You owe"
-    val dollars = kotlin.math.abs(balanceCents) / 100.0
-    val amount = "$${String.format("%.2f", dollars)}"
+    val amount = formattedBalance.ifEmpty { formatAmount(balanceCents, "USD") }
 
     Box(
         modifier = Modifier
@@ -611,8 +615,7 @@ private fun MemberBalanceCard(
         isOwedByThem -> PositiveGreen
         else -> NegativeRed
     }
-    val dollars = kotlin.math.abs(memberBalance.balanceCents) / 100.0
-    val amount = "$${String.format("%.2f", dollars)}"
+    val amount = formatAmount(memberBalance.balanceCents, memberBalance.currency)
 
     Column(
         modifier = Modifier
@@ -708,7 +711,7 @@ private fun MemberBalanceCard(
                                 decorationBox = { innerTextField ->
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text(
-                                            text = "$",
+                                            text = SupportedCurrency.fromCode(memberBalance.currency).symbol,
                                             fontFamily = DmSansFamily,
                                             fontSize = 16.sp,
                                             fontWeight = FontWeight.Medium,
@@ -787,8 +790,7 @@ private fun SettleChip(label: String, selected: Boolean, onClick: () -> Unit) {
 
 @Composable
 private fun ActivityCard(item: ActivityItem) {
-    val dollars = item.amountCents / 100.0
-    val amount = "$${String.format("%.2f", dollars)}"
+    val amount = formatAmount(item.amountCents, item.currency)
     val badgeLabel = if (item.paidByCurrentUser) "You paid" else "You owe"
     val badgeBg = if (item.paidByCurrentUser) PositiveGreenLight else NegativeRedLight
     val badgeTextColor = if (item.paidByCurrentUser) PositiveGreen else NegativeRed

@@ -24,7 +24,8 @@ interface BalanceRepository {
 @Serializable
 private data class NetBalanceRow(
     @SerialName("user_id") val userId: String = "",
-    @SerialName("balance_cents") val balanceCents: Long = 0L
+    @SerialName("balance_cents") val balanceCents: Long = 0L,
+    val currency: String = "USD"
 )
 
 @Singleton
@@ -41,16 +42,23 @@ class SupabaseBalanceRepository @Inject constructor(
         val params = buildJsonObject { put("p_group_id", groupId) }
         val balanceRows = try {
             supabaseClient.postgrest
-                .rpc("net_balances", params)
+                .rpc("net_balances_v2", params)
                 .decodeList<NetBalanceRow>()
         } catch (_: Exception) {
-            emptyList()
+            try {
+                supabaseClient.postgrest
+                    .rpc("net_balances", params)
+                    .decodeList<NetBalanceRow>()
+            } catch (_: Exception) {
+                emptyList()
+            }
         }
         val balances = balanceRows.map { row ->
             MemberBalance(
                 userId = row.userId,
                 name = "",
-                balanceCents = row.balanceCents
+                balanceCents = row.balanceCents,
+                currency = row.currency
             )
         }
         _balances.update { it + (groupId to balances) }

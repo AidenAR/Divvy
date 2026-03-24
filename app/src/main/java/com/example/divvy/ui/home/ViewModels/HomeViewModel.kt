@@ -8,6 +8,7 @@ import com.example.divvy.backend.DataResult
 import com.example.divvy.backend.GroupRepository
 import com.example.divvy.components.GroupIcon
 import com.example.divvy.models.Group
+import com.example.divvy.models.formatAmount
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,6 +21,8 @@ data class HomeUiState(
     val groups: List<Group> = emptyList(),
     val totalOwedCents: Long = 0L,
     val totalOwingCents: Long = 0L,
+    val owedByCurrency: Map<String, Long> = emptyMap(),
+    val owingByCurrency: Map<String, Long> = emptyMap(),
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
     val activityItems: List<ActivityFeedItem> = emptyList(),
@@ -30,14 +33,20 @@ data class HomeUiState(
 ) {
     val formattedOwed: String
         get() {
-            val dollars = totalOwedCents / 100.0
-            return "$${String.format("%.2f", dollars)}"
+            if (owedByCurrency.isEmpty()) return formatAmount(totalOwedCents, "USD")
+            return owedByCurrency.entries
+                .filter { it.value > 0 }
+                .joinToString(", ") { formatAmount(it.value, it.key) }
+                .ifEmpty { formatAmount(0L, "USD") }
         }
 
     val formattedOwing: String
         get() {
-            val dollars = totalOwingCents / 100.0
-            return "$${String.format("%.2f", dollars)}"
+            if (owingByCurrency.isEmpty()) return formatAmount(totalOwingCents, "USD")
+            return owingByCurrency.entries
+                .filter { it.value > 0 }
+                .joinToString(", ") { formatAmount(it.value, it.key) }
+                .ifEmpty { formatAmount(0L, "USD") }
         }
 }
 
@@ -59,10 +68,24 @@ class HomeViewModel @Inject constructor(
                         is DataResult.Error -> current.copy(isLoading = false, errorMessage = result.message)
                         is DataResult.Success -> {
                             val groups = result.data
+                            // Compute per-currency owed/owing totals
+                            val owed = mutableMapOf<String, Long>()
+                            val owing = mutableMapOf<String, Long>()
+                            for (group in groups) {
+                                for (bal in group.balances) {
+                                    if (bal.balanceCents > 0) {
+                                        owed[bal.currency] = (owed[bal.currency] ?: 0L) + bal.balanceCents
+                                    } else if (bal.balanceCents < 0) {
+                                        owing[bal.currency] = (owing[bal.currency] ?: 0L) + kotlin.math.abs(bal.balanceCents)
+                                    }
+                                }
+                            }
                             current.copy(
                                 groups = groups,
-                                totalOwedCents = groups.filter { g -> g.balanceCents > 0 }.sumOf { g -> g.balanceCents },
-                                totalOwingCents = groups.filter { g -> g.balanceCents < 0 }.sumOf { g -> kotlin.math.abs(g.balanceCents) },
+                                totalOwedCents = owed.values.sum(),
+                                totalOwingCents = owing.values.sum(),
+                                owedByCurrency = owed,
+                                owingByCurrency = owing,
                                 isLoading = false,
                                 errorMessage = null
                             )

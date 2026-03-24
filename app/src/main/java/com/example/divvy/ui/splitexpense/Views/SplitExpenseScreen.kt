@@ -64,6 +64,8 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.example.divvy.components.GroupIcon
 import com.example.divvy.models.Group
+import com.example.divvy.models.SupportedCurrency
+import com.example.divvy.models.formatAmount
 import com.example.divvy.ui.creategroup.CreateGroupSheet
 import com.example.divvy.ui.splitexpense.ViewModels.SplitExpenseViewModel
 import com.example.divvy.ui.splitexpense.ViewModels.SplitMember
@@ -76,8 +78,8 @@ import com.example.divvy.ui.theme.DmSansFamily
 fun SplitExpenseScreen(
     viewModel: SplitExpenseViewModel = hiltViewModel(),
     onBack: () -> Unit,
-    onNavigateToAssignItems: (groupId: String, amount: String, description: String, paidByUserId: String) -> Unit = { _, _, _, _ -> },
-    onNavigateToSplitByPercentage: (groupId: String, amount: String, description: String, paidByUserId: String) -> Unit = { _, _, _, _ -> }
+    onNavigateToAssignItems: (groupId: String, amount: String, description: String, paidByUserId: String, currency: String) -> Unit = { _, _, _, _, _ -> },
+    onNavigateToSplitByPercentage: (groupId: String, amount: String, description: String, paidByUserId: String, currency: String) -> Unit = { _, _, _, _, _ -> }
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -86,9 +88,9 @@ fun SplitExpenseScreen(
             when (event) {
                 is SplitExpenseViewModel.SplitEvent.Created -> onBack()
                 is SplitExpenseViewModel.SplitEvent.GoToAssignItems ->
-                    onNavigateToAssignItems(event.groupId, event.amount, event.description, event.paidByUserId)
+                    onNavigateToAssignItems(event.groupId, event.amount, event.description, event.paidByUserId, event.currency)
                 is SplitExpenseViewModel.SplitEvent.GoToSplitByPercentage ->
-                    onNavigateToSplitByPercentage(event.groupId, event.amount, event.description, event.paidByUserId)
+                    onNavigateToSplitByPercentage(event.groupId, event.amount, event.description, event.paidByUserId, event.currency)
             }
         }
     }
@@ -139,7 +141,9 @@ fun SplitExpenseScreen(
 
                 AmountSection(
                     amount = uiState.amount,
-                    onAmountChange = viewModel::onAmountChange
+                    onAmountChange = viewModel::onAmountChange,
+                    currencyCode = uiState.currency,
+                    onCurrencySelected = viewModel::onCurrencySelected
                 )
 
                 Spacer(Modifier.height(16.dp))
@@ -183,6 +187,7 @@ fun SplitExpenseScreen(
                         SplitPreview(
                             members = uiState.members,
                             perPersonAmount = uiState.perPersonAmount,
+                            currencyCode = uiState.currency,
                             coveredBy = uiState.coveredBy,
                             expandedCoveringMemberId = uiState.expandedCoveringMemberId,
                             onToggleCovering = viewModel::onToggleCoveringForMember,
@@ -286,7 +291,9 @@ private fun MembersSection(
 @Composable
 private fun AmountSection(
     amount: String,
-    onAmountChange: (String) -> Unit
+    onAmountChange: (String) -> Unit,
+    currencyCode: String = "USD",
+    onCurrencySelected: (String) -> Unit = {}
 ) {
     Column {
         Text(
@@ -300,7 +307,7 @@ private fun AmountSection(
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(
-                text = "$",
+                text = SupportedCurrency.fromCode(currencyCode).symbol,
                 fontFamily = DmSansFamily,
                 fontSize = 32.sp,
                 fontWeight = FontWeight.Medium,
@@ -334,6 +341,50 @@ private fun AmountSection(
                     innerTextField()
                 }
             )
+        }
+        Spacer(Modifier.height(12.dp))
+        CurrencySelector(
+            selectedCurrency = currencyCode,
+            onCurrencySelected = onCurrencySelected
+        )
+    }
+}
+
+@Composable
+private fun CurrencySelector(
+    selectedCurrency: String,
+    onCurrencySelected: (String) -> Unit
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.horizontalScroll(rememberScrollState())
+    ) {
+        SupportedCurrency.entries.forEach { currency ->
+            val isSelected = currency.code == selectedCurrency
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .border(
+                        width = if (isSelected) 1.5.dp else 1.dp,
+                        color = if (isSelected) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.outline,
+                        shape = RoundedCornerShape(8.dp)
+                    )
+                    .background(
+                        if (isSelected) MaterialTheme.colorScheme.primaryContainer
+                        else Color.Transparent
+                    )
+                    .clickable { onCurrencySelected(currency.code) }
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                Text(
+                    text = "${currency.symbol} ${currency.code}",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                    color = if (isSelected) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }
@@ -689,6 +740,7 @@ private fun GroupCard(group: Group, isSelected: Boolean, onClick: () -> Unit) {
 private fun SplitPreview(
     members: List<SplitMember>,
     perPersonAmount: String,
+    currencyCode: String,
     coveredBy: Map<String, String>,
     expandedCoveringMemberId: String?,
     onToggleCovering: (String) -> Unit,
@@ -750,16 +802,16 @@ private fun SplitPreview(
                         }
                     }
                     val coversCount = coveredBy.values.count { it == member.id }
+                    val baseAmount = ((perPersonAmount.toDoubleOrNull() ?: 0.0) * 100).toLong()
                     val displayAmount = if (coverer != null) {
-                        perPersonAmount
+                        baseAmount
                     } else if (coversCount > 0) {
-                        val base = perPersonAmount.toDoubleOrNull() ?: 0.0
-                        String.format("%.2f", base * (1 + coversCount))
+                        baseAmount * (1 + coversCount)
                     } else {
-                        perPersonAmount
+                        baseAmount
                     }
                     Text(
-                        text = "$$displayAmount",
+                        text = formatAmount(displayAmount, currencyCode),
                         style = MaterialTheme.typography.titleSmall,
                         color = if (coverer != null) MaterialTheme.colorScheme.onSurfaceVariant
                             else MaterialTheme.colorScheme.onBackground,

@@ -54,6 +54,7 @@ import com.example.divvy.components.GroupIcon
 import com.example.divvy.models.Group
 import com.example.divvy.models.LedgerEntry
 import com.example.divvy.models.LedgerEntryType
+import com.example.divvy.models.formatAmount
 import com.example.divvy.ui.ledger.ViewModels.LedgerFilter
 import com.example.divvy.ui.ledger.ViewModels.LedgerViewModel
 import com.example.divvy.ui.theme.AmberLight
@@ -317,8 +318,7 @@ private fun LedgerEntryCard(
     groupIcon: com.example.divvy.components.GroupIcon? = null
 ) {
     val isSettlement = entry.type == LedgerEntryType.SETTLEMENT
-    val dollars = entry.amountCents / 100.0
-    val amount = "$${String.format("%.2f", dollars)}"
+    val amount = formatAmount(entry.amountCents, entry.currency)
 
     val iconBg: Color
     val iconTint: Color

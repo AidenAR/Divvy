@@ -15,6 +15,8 @@ import com.example.divvy.components.GroupIcon
 import com.example.divvy.models.Group
 import com.example.divvy.models.GroupMember
 import com.example.divvy.models.ProfileRow
+import com.example.divvy.models.SupportedCurrency
+import com.example.divvy.models.formatAmount
 import com.example.divvy.models.splitEqually
 import android.util.Log
 import com.example.divvy.ui.groups.ViewModels.CreateGroupStep
@@ -44,6 +46,7 @@ data class SplitMember(
 data class SplitExpenseUiState(
     val amount: String = "",
     val description: String = "",
+    val currency: String = "USD",
     val groups: List<Group> = emptyList(),
     val selectedGroupId: String? = null,
     val splitMethod: SplitMethod = SplitMethod.Equally,
@@ -69,12 +72,24 @@ data class SplitExpenseUiState(
     val paidByName: String
         get() = members.firstOrNull { it.id == paidByUserId }?.name ?: "You"
 
+    val currencySymbol: String
+        get() = SupportedCurrency.fromCode(currency).symbol
+
     val perPersonAmount: String
         get() {
             val total = amount.toDoubleOrNull() ?: return ""
             val count = members.size
             if (count == 0) return ""
             return String.format("%.2f", total / count)
+        }
+
+    val formattedPerPerson: String
+        get() {
+            val total = amount.toDoubleOrNull() ?: return ""
+            val count = members.size
+            if (count == 0) return ""
+            val perPerson = (total * 100 / count).toLong()
+            return formatAmount(perPerson, currency)
         }
 
     val canCreate: Boolean
@@ -116,8 +131,8 @@ class SplitExpenseViewModel @Inject constructor(
 
     sealed interface SplitEvent {
         data object Created : SplitEvent
-        data class GoToAssignItems(val groupId: String, val amount: String, val description: String, val paidByUserId: String) : SplitEvent
-        data class GoToSplitByPercentage(val groupId: String, val amount: String, val description: String, val paidByUserId: String) : SplitEvent
+        data class GoToAssignItems(val groupId: String, val amount: String, val description: String, val paidByUserId: String, val currency: String) : SplitEvent
+        data class GoToSplitByPercentage(val groupId: String, val amount: String, val description: String, val paidByUserId: String, val currency: String) : SplitEvent
     }
 
     private val _events = Channel<SplitEvent>(Channel.BUFFERED)
@@ -218,6 +233,10 @@ class SplitExpenseViewModel @Inject constructor(
             }
             state.copy(coveredBy = next, expandedCoveringMemberId = null)
         }
+    }
+
+    fun onCurrencySelected(currency: String) {
+        _uiState.update { it.copy(currency = currency, errorMessage = null) }
     }
 
     fun onShowCreateGroup() {
@@ -333,13 +352,13 @@ class SplitExpenseViewModel @Inject constructor(
         when (state.splitMethod) {
             SplitMethod.ByItems -> {
                 viewModelScope.launch {
-                    _events.send(SplitEvent.GoToAssignItems(groupId, state.amount, desc, state.paidByUserId))
+                    _events.send(SplitEvent.GoToAssignItems(groupId, state.amount, desc, state.paidByUserId, state.currency))
                 }
                 return
             }
             SplitMethod.ByPercentage -> {
                 viewModelScope.launch {
-                    _events.send(SplitEvent.GoToSplitByPercentage(groupId, state.amount, desc, state.paidByUserId))
+                    _events.send(SplitEvent.GoToSplitByPercentage(groupId, state.amount, desc, state.paidByUserId, state.currency))
                 }
                 return
             }
@@ -361,7 +380,7 @@ class SplitExpenseViewModel @Inject constructor(
                     groupId = groupId,
                     description = desc,
                     amountCents = amountCents,
-                    currency = "USD",
+                    currency = state.currency,
                     splitMethod = "EQUAL",
                     paidByUserId = state.paidByUserId,
                     splits = splits

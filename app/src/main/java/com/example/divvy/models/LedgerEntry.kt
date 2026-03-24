@@ -18,5 +18,6 @@ data class LedgerEntry(
     val groupName: String = "",
     val paidByName: String = "",
     val toName: String = "",
-    val paidByCurrentUser: Boolean = false
+    val paidByCurrentUser: Boolean = false,
+    val currency: String = "USD"
 )

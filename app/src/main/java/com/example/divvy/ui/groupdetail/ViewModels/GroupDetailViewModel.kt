@@ -49,6 +49,7 @@ data class GroupDetailUiState(
 ) {
     // Convenience accessors so the UI doesn't need to know about delegates
     val expandedMemberId get() = settlement.expandedMemberId
+    val expandedCurrency get() = settlement.expandedCurrency
     val settleMode get() = settlement.settleMode
     val settleAmount get() = settlement.settleAmount
     val isSettling get() = settlement.isSettling
@@ -128,13 +129,21 @@ class GroupDetailViewModel @AssistedInject constructor(
                 balanceRepository.observeBalances(groupId),
                 expensesRepository.observeGroupExpenses(groupId)
             ) { group, members, rawBalances, expenses ->
-                val balanceMap = rawBalances.associateBy { it.userId }
-                val memberBalances = members.map { member ->
-                    MemberBalance(
-                        userId = member.userId,
-                        name = member.name,
-                        balanceCents = balanceMap[member.userId]?.balanceCents ?: 0L
-                    )
+                // Group raw balances by (userId, currency) to support multi-currency
+                val memberBalances = members.flatMap { member ->
+                    val memberRawBalances = rawBalances.filter { it.userId == member.userId }
+                    if (memberRawBalances.isEmpty()) {
+                        listOf(MemberBalance(userId = member.userId, name = member.name, balanceCents = 0L))
+                    } else {
+                        memberRawBalances.map { raw ->
+                            MemberBalance(
+                                userId = member.userId,
+                                name = member.name,
+                                balanceCents = raw.balanceCents,
+                                currency = raw.currency
+                            )
+                        }
+                    }
                 }
                 val activity = buildActivity(expenses, members)
                 val memberIds = members.map { it.userId }.toSet() + myUserId
@@ -171,8 +180,8 @@ class GroupDetailViewModel @AssistedInject constructor(
     }
 
     // --- Settlement (forwarded to delegate) ---
-    fun onMemberClick(userId: String) = settlementDelegate.onMemberClick(userId)
-    fun onSettleModeSelected(mode: SettleMode) = settlementDelegate.onSettleModeSelected(mode)
+    fun onMemberClick(userId: String, currency: String) = settlementDelegate.onMemberClick(userId, currency)
+    fun onSettleModeSelected(mode: SettleMode, currency: String = "USD") = settlementDelegate.onSettleModeSelected(mode, currency)
     fun onSettleAmountChange(value: String) = settlementDelegate.onSettleAmountChange(value)
     fun onConfirmSettle(userId: String) = settlementDelegate.onConfirmSettle(userId)
 
@@ -257,7 +266,8 @@ class GroupDetailViewModel @AssistedInject constructor(
                     paidByLabel = if (paidByCurrentUser) "You"
                     else memberMap[expense.paidByUserId]?.name ?: "Unknown",
                     paidByCurrentUser = paidByCurrentUser,
-                    timestamp = expense.createdAt
+                    timestamp = expense.createdAt,
+                    currency = expense.currency
                 )
             }
     }

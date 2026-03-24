@@ -9,6 +9,7 @@ import com.example.divvy.backend.BalanceRepository
 import com.example.divvy.backend.ExpensesRepository
 import com.example.divvy.backend.GroupRepository
 import com.example.divvy.backend.MemberRepository
+import com.example.divvy.models.formatAmount
 import com.example.divvy.models.splitByPercentage
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
@@ -32,6 +33,7 @@ data class PercentageMember(
 data class SplitByPercentageUiState(
     val description: String = "",
     val amountDisplay: String = "",
+    val currency: String = "USD",
     val members: List<PercentageMember> = emptyList(),
     val percentages: Map<String, String> = emptyMap(),
     val paidByUserId: String = "",
@@ -49,7 +51,8 @@ data class SplitByPercentageUiState(
     fun dollarAmountFor(memberId: String): String {
         val total = amountDisplay.toDoubleOrNull() ?: 0.0
         val pct = percentages[memberId]?.toDoubleOrNull() ?: 0.0
-        return "$${String.format("%.2f", total * pct / 100.0)}"
+        val amountCents = (total * pct / 100.0 * 100).toLong()
+        return formatAmount(amountCents, currency)
     }
 
     fun effectiveDollarAmountFor(memberId: String): String {
@@ -81,6 +84,7 @@ class SplitByPercentageViewModel @AssistedInject constructor(
     @Assisted("amountDisplay") private val amountDisplay: String,
     @Assisted("description") private val description: String,
     @Assisted("paidByUserId") private val paidByUserId: String,
+    @Assisted("currency") private val currency: String,
     private val authRepository: AuthRepository,
     private val memberRepository: MemberRepository,
     private val expensesRepository: ExpensesRepository,
@@ -95,7 +99,8 @@ class SplitByPercentageViewModel @AssistedInject constructor(
             @Assisted("groupId") groupId: String,
             @Assisted("amountDisplay") amountDisplay: String,
             @Assisted("description") description: String,
-            @Assisted("paidByUserId") paidByUserId: String
+            @Assisted("paidByUserId") paidByUserId: String,
+            @Assisted("currency") currency: String
         ): SplitByPercentageViewModel
     }
 
@@ -103,6 +108,7 @@ class SplitByPercentageViewModel @AssistedInject constructor(
         SplitByPercentageUiState(
             description = description.ifBlank { "Expense" },
             amountDisplay = amountDisplay,
+            currency = currency,
             paidByUserId = paidByUserId,
             isLoading = true
         )
@@ -189,7 +195,7 @@ class SplitByPercentageViewModel @AssistedInject constructor(
                 groupId = groupId,
                 description = state.description,
                 amountCents = amountCents,
-                currency = "USD",
+                currency = currency,
                 splitMethod = "PERCENTAGE",
                 paidByUserId = state.paidByUserId,
                 splits = splits
