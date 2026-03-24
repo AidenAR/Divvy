@@ -87,6 +87,7 @@ import kotlin.math.abs
 @Composable
 fun FriendsScreen(
     viewModel: FriendsViewModel = hiltViewModel(),
+    onFriendClick: (String) -> Unit = {},
     onCreatedGroupNavigate: (String) -> Unit = {},
     onAddExpenseNavigate: (String) -> Unit = {}
 ) {
@@ -208,9 +209,6 @@ fun FriendsScreen(
                     count = uiState.selectedKeys.size,
                     onAddToGroup = { viewModel.onShowAddToGroupSheet() },
                     onCreateGroup = { viewModel.onShowCreateGroupSheet() },
-                    onAddExpense = if (uiState.selectedKeys.size == 1) {
-                        { viewModel.onAddExpenseWithSelectedFriend() }
-                    } else null,
                     onClear = { viewModel.onClearSelection() }
                 )
             }
@@ -227,6 +225,8 @@ fun FriendsScreen(
                             onClick = {
                                 if (uiState.selectedKeys.isNotEmpty()) {
                                     viewModel.onToggleSelection(friend.selectionKey)
+                                } else {
+                                    onFriendClick(friend.userId)
                                 }
                             },
                             onLongClick = { viewModel.onToggleSelection(friend.selectionKey) }
@@ -255,6 +255,8 @@ fun FriendsScreen(
                                 onClick = {
                                     if (uiState.selectedKeys.isNotEmpty()) {
                                         viewModel.onToggleSelection(friend.selectionKey)
+                                    } else {
+                                        onFriendClick(friend.userId)
                                     }
                                 },
                                 onLongClick = { viewModel.onToggleSelection(friend.selectionKey) }
@@ -393,7 +395,6 @@ private fun SelectionActionBar(
     count: Int,
     onAddToGroup: () -> Unit,
     onCreateGroup: () -> Unit,
-    onAddExpense: (() -> Unit)? = null,
     onClear: () -> Unit
 ) {
     Surface(
@@ -422,15 +423,6 @@ private fun SelectionActionBar(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (onAddExpense != null) {
-                    OutlinedButton(
-                        onClick = onAddExpense,
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.height(36.dp)
-                    ) {
-                        Text("Add Expense", fontSize = 12.sp, maxLines = 1)
-                    }
-                }
                 OutlinedButton(
                     onClick = onAddToGroup,
                     shape = RoundedCornerShape(8.dp),
@@ -459,7 +451,8 @@ private fun FriendBalanceCard(
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
-    val surfaceColor = MaterialTheme.colorScheme.surface
+    val surfaceColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer
+        else MaterialTheme.colorScheme.surface
 
     // Determine status for badge
     val nonZeroNets = friend.netBalancesByCurrency.filter { it.value != 0L }
@@ -496,38 +489,56 @@ private fun FriendBalanceCard(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Avatar with status badge
-            Box(modifier = Modifier.size(48.dp)) {
+            if (isSelected) {
+                // Checkmark circle replacing avatar
                 Box(
                     modifier = Modifier
                         .size(44.dp)
                         .clip(CircleShape)
-                        .background(avatarColor),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = friend.initials.uppercase(),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 17.sp,
-                        color = Color.White
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .size(20.dp)
-                        .align(Alignment.BottomEnd)
-                        .offset(x = 2.dp, y = 2.dp)
-                        .clip(CircleShape)
-                        .background(badgeColor)
-                        .border(1.5.dp, surfaceColor, CircleShape),
+                        .background(MaterialTheme.colorScheme.primary),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = badgeIcon,
-                        contentDescription = null,
-                        modifier = Modifier.size(11.dp),
-                        tint = Color.White
+                        Icons.Rounded.Check,
+                        contentDescription = "Selected",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
                     )
+                }
+            } else {
+                // Avatar with status badge
+                Box(modifier = Modifier.size(48.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(avatarColor),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = friend.initials.uppercase(),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 17.sp,
+                            color = Color.White
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(20.dp)
+                            .align(Alignment.BottomEnd)
+                            .offset(x = 2.dp, y = 2.dp)
+                            .clip(CircleShape)
+                            .background(badgeColor)
+                            .border(1.5.dp, surfaceColor, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = badgeIcon,
+                            contentDescription = null,
+                            modifier = Modifier.size(11.dp),
+                            tint = Color.White
+                        )
+                    }
                 }
             }
 
@@ -546,15 +557,8 @@ private fun FriendBalanceCard(
 
             Spacer(Modifier.width(8.dp))
 
-            // Right side: amount or selection check
-            if (isSelected) {
-                Icon(
-                    Icons.Rounded.Check,
-                    contentDescription = "Selected",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(24.dp)
-                )
-            } else if (friend.isSettledUp) {
+            // Right side: amount
+            if (friend.isSettledUp) {
                 Text(
                     text = "settled up",
                     style = MaterialTheme.typography.bodySmall,

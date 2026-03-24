@@ -470,7 +470,7 @@ class FriendsViewModel @Inject constructor(
                 runCatching {
                     memberRepository.refreshMembers(group.id)
                     val members = memberRepository.getMembers(group.id).first()
-                    members.size == 1 // Only 1 other person besides current user
+                    members.size == 2 // Exactly 2 members: me + friend
                 }.getOrDefault(false)
             }
 
