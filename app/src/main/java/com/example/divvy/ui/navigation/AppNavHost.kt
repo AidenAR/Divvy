@@ -11,6 +11,7 @@ import com.example.divvy.ui.assignitems.Views.AssignItemsScreen
 import com.example.divvy.ui.splitpercentage.ViewModels.SplitByPercentageViewModel
 import com.example.divvy.ui.splitpercentage.Views.SplitByPercentageScreen
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import com.example.divvy.ui.frienddetail.FriendDetailScreen
 import com.example.divvy.ui.friends.FriendsScreen
 import com.example.divvy.ui.groups.Views.GroupsScreen
 import com.example.divvy.ui.home.Views.HomeScreen
@@ -60,6 +61,9 @@ fun AppNavHost(
         }
         composable<AppDestination.Friends> {
             FriendsScreen(
+                onFriendClick = { friendUserId ->
+                    navController.navigate(AppDestination.FriendDetail(friendUserId))
+                },
                 onCreatedGroupNavigate = { id ->
                     navController.navigate(AppDestination.GroupDetail(id))
                 },
@@ -81,6 +85,16 @@ fun AppNavHost(
         composable<AppDestination.Profile> {
             ProfileScreen(
                 onBack = { navController.popBackStack() }
+            )
+        }
+        composable<AppDestination.FriendDetail> { backStack ->
+            val dest: AppDestination.FriendDetail = backStack.toRoute()
+            FriendDetailScreen(
+                friendUserId = dest.friendUserId,
+                onBack = { navController.popBackStack() },
+                onAddExpenseNavigate = { groupId ->
+                    navController.navigate(AppDestination.SplitExpense(preselectedGroupId = groupId))
+                }
             )
         }
         composable<AppDestination.GroupDetail> { backStack ->
