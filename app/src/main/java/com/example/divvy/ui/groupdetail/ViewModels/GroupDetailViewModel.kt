@@ -35,6 +35,12 @@ import java.util.Locale
 
 enum class SettleMode { Fully, Partially }
 
+data class UserBalanceGroup(
+    val userId: String,
+    val name: String,
+    val balances: List<MemberBalance>
+)
+
 data class GroupDetailUiState(
     val group: Group = Group(id = "", name = ""),
     val memberBalances: List<MemberBalance> = emptyList(),
@@ -77,15 +83,27 @@ data class GroupDetailUiState(
     val inviteSearchQuery get() = inviteMembers.searchQuery
     val isAddingMember get() = inviteMembers.isAdding
 
-    /** The balances list to display after applying toggles */
-    val displayedBalances: List<MemberBalance> get() {
-        return if (onlyMine) {
-            val base = if (convertToCad) cadMemberBalances else memberBalances
-            base.filter { it.balanceCents != 0L }
+    /** The grouped balances list to display after applying toggles */
+    val displayedBalances: List<UserBalanceGroup> get() {
+        val base = if (onlyMine) {
+            if (convertToCad) cadMemberBalances else memberBalances
         } else {
-            val base = if (convertToCad) cadGroupNetBalances else groupNetBalances
-            base.filter { it.balanceCents != 0L }.sortedByDescending { it.balanceCents }
+            if (convertToCad) cadGroupNetBalances else groupNetBalances
         }
+
+        return base.filter { it.balanceCents != 0L }
+            .groupBy { it.userId }
+            .map { (id, bals) ->
+                UserBalanceGroup(
+                    userId = id,
+                    name = bals.first().name,
+                    balances = bals.sortedByDescending { kotlin.math.abs(it.balanceCents) }
+                )
+            }
+            .sortedWith(
+                compareBy<UserBalanceGroup> { it.userId != myUserId } // Hoist 'You' to the top
+                    .thenBy { it.name }
+            )
     }
 
     /** The payments list to display after applying toggles */
