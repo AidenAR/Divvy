@@ -136,6 +136,16 @@ class GroupDetailViewModel @AssistedInject constructor(
 
     private val myUserId: String = authRepository.getCurrentUserId()
 
+    // Base fallback rates keyed to CAD = 1.0 (from 2026-03-25 mock data)
+    private val fallbackRates = mapOf(
+        "AUD" to 1.0419, "BRL" to 3.7968, "CHF" to 0.57289, "CNY" to 5.0059, "CZK" to 15.2951,
+        "DKK" to 4.6765, "EUR" to 0.6259, "GBP" to 0.54177, "HKD" to 5.673, "HUF" to 243.59,
+        "IDR" to 12231.0, "ILS" to 2.2649, "INR" to 68.16, "ISK" to 89.75, "JPY" to 115.33,
+        "KRW" to 1086.52, "MXN" to 12.8898, "MYR" to 2.8768, "NOK" to 7.0636, "NZD" to 1.2469,
+        "PHP" to 43.579, "PLN" to 2.6737, "RON" to 3.1888, "SEK" to 6.7419, "SGD" to 0.92815,
+        "THB" to 23.645, "TRY" to 32.183, "USD" to 0.72554, "ZAR" to 12.2715, "CAD" to 1.0
+    )
+
     init {
         _uiState.update { it.copy(myUserId = myUserId) }
     }
@@ -220,16 +230,90 @@ class GroupDetailViewModel @AssistedInject constructor(
                     }
                 }
 
+                // --- 2. CAD Converted Calculations ---
+
+                var netCad = 0L
+                for (raw in rawBalances) {
+                    if (raw.currency == Group.BASE_CURRENCY) {
+                        netCad += raw.balanceCents
+                    } else {
+                        // Rate falls back to the hardcoded map if the network fails
+                        val rate = forexRepository.getRate(raw.currency, Group.BASE_CURRENCY)
+                            ?: getFallbackRate(raw.currency, Group.BASE_CURRENCY)
+                        netCad += (raw.balanceCents * rate).toLong()
+                    }
+                }
+
+                val cadMemberBals = mutableListOf<MemberBalance>()
+                val activeMembers = members.filter { it.userId != myUserId }
+                for (member in activeMembers) {
+                    val memberRaws = rawBalances.filter { it.userId == member.userId }
+                    if (memberRaws.isEmpty()) continue
+
+                    var totalCad = 0L
+                    for (b in memberRaws) {
+                        if (b.currency == Group.BASE_CURRENCY) {
+                            totalCad += b.balanceCents
+                        } else {
+                            val rate = forexRepository.getRate(b.currency, Group.BASE_CURRENCY)
+                                ?: getFallbackRate(b.currency, Group.BASE_CURRENCY)
+                            totalCad += (b.balanceCents * rate).toLong()
+                        }
+                    }
+
+                    cadMemberBals.add(
+                        MemberBalance(
+                            userId = member.userId,
+                            name = member.name,
+                            balanceCents = totalCad,
+                            currency = Group.BASE_CURRENCY
+                        )
+                    )
+                }
+
+                val cadGroupNetBals = mutableListOf<MemberBalance>()
+                var myCadNet = 0L
+                for (mb in cadMemberBals) {
+                    myCadNet += mb.balanceCents
+                    cadGroupNetBals.add(MemberBalance(mb.userId, mb.name, -mb.balanceCents, Group.BASE_CURRENCY))
+                }
+                if (myCadNet != 0L) {
+                    cadGroupNetBals.add(MemberBalance(myUserId, "You", myCadNet, Group.BASE_CURRENCY))
+                }
+
+                val mergedCadPayments = simplifyPayments(cadMemberBals, members, myUserId)
+
+                // --- 3. Activity Feed ---
+
                 val activity = buildActivity(expenses, members)
                 val memberIds = members.map { it.userId }.toSet() + myUserId
-                GroupDetailData(group, memberBalances, groupNetBals, simplifiedPaymentsList, activity, memberIds)
+
+                // --- 4. Package all calculations ---
+                GroupDetailData(
+                    group = group,
+                    memberBalances = memberBalances,
+                    groupNetBalances = groupNetBals,
+                    simplifiedPayments = simplifiedPaymentsList,
+                    cadMemberBalances = cadMemberBals,
+                    cadGroupNetBalances = cadGroupNetBals,
+                    cadSimplifiedPayments = mergedCadPayments,
+                    netBalanceCad = netCad,
+                    activity = activity,
+                    memberIds = memberIds
+                )
+
             }.collect { data ->
+                // --- 5. Commit all updates cleanly in one single UI pass ---
                 _uiState.update { current ->
                     current.copy(
                         group = data.group,
                         memberBalances = data.memberBalances,
                         groupNetBalances = data.groupNetBalances,
                         simplifiedPayments = data.simplifiedPayments,
+                        cadMemberBalances = data.cadMemberBalances,
+                        cadGroupNetBalances = data.cadGroupNetBalances,
+                        cadSimplifiedPayments = data.cadSimplifiedPayments,
+                        netBalanceCad = data.netBalanceCad,
                         activity = data.activity,
                         isLoading = false,
                         isCreator = data.group.createdBy == myUserId,
@@ -239,6 +323,7 @@ class GroupDetailViewModel @AssistedInject constructor(
             }
         }
 
+        // Delegate State Collectors
         viewModelScope.launch {
             settlementDelegate.state.collect { s ->
                 _uiState.update { it.copy(settlement = s) }
@@ -252,62 +337,6 @@ class GroupDetailViewModel @AssistedInject constructor(
         viewModelScope.launch {
             inviteDelegate.state.collect { s ->
                 _uiState.update { it.copy(inviteMembers = s) }
-            }
-        }
-
-        // Fetch forex rates, recompute CAD net and CAD-converted simplified payments
-        viewModelScope.launch {
-            balanceRepository.observeBalances(groupId).collect { rawBalances ->
-                val netCad = rawBalances.sumOf { raw ->
-                    if (raw.currency == Group.BASE_CURRENCY) {
-                        raw.balanceCents
-                    } else {
-                        val rate = forexRepository.getRate(raw.currency, Group.BASE_CURRENCY) ?: 1.0
-                        (raw.balanceCents * rate).toLong()
-                    }
-                }
-
-                // 1. Convert and merge direct Member Balances
-                val cadMemberBals = _uiState.value.memberBalances
-                    .groupBy { it.userId }
-                    .mapNotNull { (userId, balances) ->
-                        if (balances.isEmpty()) return@mapNotNull null
-                        val totalCad = balances.sumOf { b ->
-                            if (b.currency == Group.BASE_CURRENCY) b.balanceCents
-                            else {
-                                val rate = forexRepository.getRate(b.currency, Group.BASE_CURRENCY) ?: 1.0
-                                (b.balanceCents * rate).toLong()
-                            }
-                        }
-                        MemberBalance(
-                            userId = userId,
-                            name = balances.first().name,
-                            balanceCents = totalCad,
-                            currency = Group.BASE_CURRENCY
-                        )
-                    }
-
-                // 2. Calculate Group Net Balances in CAD (Toggle Off State)
-                val cadGroupNetBals = mutableListOf<MemberBalance>()
-                var myCadNet = 0L
-                for (mb in cadMemberBals) {
-                    myCadNet += mb.balanceCents
-                    cadGroupNetBals.add(MemberBalance(mb.userId, mb.name, -mb.balanceCents, Group.BASE_CURRENCY))
-                }
-                if (myCadNet != 0L) {
-                    cadGroupNetBals.add(MemberBalance(myUserId, "You", myCadNet, Group.BASE_CURRENCY))
-                }
-
-                // 3. Reuse your existing simplifyPayments logic
-                val members = memberRepository.getMembers(groupId).first()
-                val mergedCadPayments = simplifyPayments(cadMemberBals, members, myUserId)
-
-                _uiState.update { it.copy(
-                    netBalanceCad = netCad,
-                    cadMemberBalances = cadMemberBals,
-                    cadGroupNetBalances = cadGroupNetBals,
-                    cadSimplifiedPayments = mergedCadPayments
-                ) }
             }
         }
     }
@@ -364,6 +393,17 @@ class GroupDetailViewModel @AssistedInject constructor(
 
     // --- Helpers ---
 
+    /** * Calculates the exchange rate between two currencies using the base map.
+     * Since the map defines 1 CAD = X Target Currency, we can find the cross-rate
+     * by routing through CAD: Rate = ToRate / FromRate.
+     */
+    private fun getFallbackRate(from: String, to: String): Double {
+        if (from == to) return 1.0
+        val fromRate = fallbackRates[from] ?: 1.0
+        val toRate = fallbackRates[to] ?: 1.0
+        return toRate / fromRate
+    }
+
     private fun buildActivity(
         expenses: List<GroupExpense>,
         members: List<GroupMember>
@@ -418,11 +458,16 @@ class GroupDetailViewModel @AssistedInject constructor(
     }
 }
 
+// Updated data class to hold everything our combine block computes
 private data class GroupDetailData(
     val group: Group,
     val memberBalances: List<MemberBalance>,
     val groupNetBalances: List<MemberBalance>,
     val simplifiedPayments: List<SimplifiedPayment>,
+    val cadMemberBalances: List<MemberBalance>,
+    val cadGroupNetBalances: List<MemberBalance>,
+    val cadSimplifiedPayments: List<SimplifiedPayment>,
+    val netBalanceCad: Long,
     val activity: List<ActivityItem>,
     val memberIds: Set<String>
 )
