@@ -168,9 +168,13 @@ fun GroupDetailScreen(
 
                 item {
                     Spacer(modifier = Modifier.height(8.dp))
+                    val netCad = uiState.netBalanceCad
                     BalanceSummaryCard(
-                        balanceCents = uiState.group.balanceCents,
-                        formattedBalance = uiState.group.formattedBalance
+                        balanceCents = netCad ?: uiState.group.balanceCents,
+                        formattedBalance = if (netCad != null)
+                            "${formatAmount(netCad, "CAD")}"
+                        else
+                            uiState.group.formattedBalance
                     )
                     Spacer(modifier = Modifier.height(24.dp))
                 }
@@ -178,19 +182,33 @@ fun GroupDetailScreen(
                 item {
                     SectionLabel("BALANCES")
                     Spacer(modifier = Modifier.height(10.dp))
+                    // Toggles
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(
+                            label = "Only mine",
+                            selected = uiState.onlyMine,
+                            onClick = viewModel::onToggleOnlyMine
+                        )
+                        FilterChip(
+                            label = "All in CAD",
+                            selected = uiState.convertToCad,
+                            onClick = viewModel::onToggleConvertToCad
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
                 }
-                if (uiState.simplifiedPayments.isEmpty()) {
+                if (uiState.displayedPayments.isEmpty()) {
                     item {
                         Text(
-                            text = "All settled up!",
+                            text = if (uiState.simplifiedPayments.isEmpty()) "All settled up!" else "No transactions match the current filter.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
                     }
                 } else {
-                    items(uiState.simplifiedPayments.size) { index ->
-                        val payment = uiState.simplifiedPayments[index]
+                    items(uiState.displayedPayments.size) { index ->
+                        val payment = uiState.displayedPayments[index]
                         val isExpanded = uiState.expandedMemberId == payment.fromUserId && uiState.expandedCurrency == payment.currency
                         SimplifiedPaymentCard(
                             payment        = payment,
@@ -198,12 +216,7 @@ fun GroupDetailScreen(
                             settleMode     = uiState.settleMode,
                             settleAmount   = uiState.settleAmount,
                             isSettling     = uiState.isSettling,
-                            onCardClick    = {
-                                viewModel.onMemberClick(
-                                    payment.fromUserId,
-                                    payment.currency
-                                )
-                            },
+                            onCardClick    = { viewModel.onMemberClick(payment.fromUserId, payment.currency) },
                             onModeSelect   = { mode -> viewModel.onSettleModeSelected(mode, payment.currency) },
                             onAmountChange = viewModel::onSettleAmountChange,
                             onConfirm      = { viewModel.onConfirmSettle() }
@@ -801,6 +814,28 @@ private fun SettleChip(label: String, selected: Boolean, onClick: () -> Unit) {
             text = label,
             color = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodySmall,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+        )
+    }
+}
+
+@Composable
+private fun FilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(
+                if (selected) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.surfaceVariant
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 7.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
         )
     }

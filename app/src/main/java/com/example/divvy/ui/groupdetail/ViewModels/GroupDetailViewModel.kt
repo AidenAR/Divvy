@@ -6,6 +6,7 @@ import com.example.divvy.backend.ActivityRepository
 import com.example.divvy.backend.AuthRepository
 import com.example.divvy.backend.BalanceRepository
 import com.example.divvy.backend.ExpensesRepository
+import com.example.divvy.backend.ForexRepository
 import com.example.divvy.backend.GroupRepository
 import com.example.divvy.backend.MemberRepository
 import com.example.divvy.backend.ProfilesRepository
@@ -37,6 +38,7 @@ data class GroupDetailUiState(
     val group: Group = Group(id = "", name = ""),
     val memberBalances: List<MemberBalance> = emptyList(),
     val simplifiedPayments: List<SimplifiedPayment> = emptyList(),
+    val cadSimplifiedPayments: List<SimplifiedPayment> = emptyList(),
     val activity: List<ActivityItem> = emptyList(),
     val isLoading: Boolean = true,
     val showManageSheet: Boolean = false,
@@ -44,6 +46,13 @@ data class GroupDetailUiState(
     val deletedGroup: Boolean = false,
     val isCreator: Boolean = false,
     val currentMemberIds: Set<String> = emptySet(),
+    /** Net balance converted to CAD for the summary card. Null while rates are loading. */
+    val netBalanceCad: Long? = null,
+    val myUserId: String = "",
+    /** Toggle: only show transactions involving the current user (default on) */
+    val onlyMine: Boolean = true,
+    /** Toggle: convert all amounts to CAD (default off) */
+    val convertToCad: Boolean = false,
     // Delegate states
     val settlement: SettlementState = SettlementState(),
     val editGroup: EditGroupState = EditGroupState(),
@@ -63,6 +72,12 @@ data class GroupDetailUiState(
     val allProfiles get() = inviteMembers.allProfiles
     val inviteSearchQuery get() = inviteMembers.searchQuery
     val isAddingMember get() = inviteMembers.isAdding
+
+    /** The payments list to display after applying toggles */
+    val displayedPayments: List<SimplifiedPayment> get() {
+        val base = if (convertToCad) cadSimplifiedPayments else simplifiedPayments
+        return if (onlyMine) base.filter { it.fromIsCurrentUser || it.toIsCurrentUser } else base
+    }
 }
 
 @HiltViewModel(assistedFactory = GroupDetailViewModel.Factory::class)
@@ -74,7 +89,8 @@ class GroupDetailViewModel @AssistedInject constructor(
     private val balanceRepository: BalanceRepository,
     private val expensesRepository: ExpensesRepository,
     private val profilesRepository: ProfilesRepository,
-    private val activityRepository: ActivityRepository
+    private val activityRepository: ActivityRepository,
+    private val forexRepository: ForexRepository
 ) : ViewModel() {
 
     @AssistedFactory
@@ -86,6 +102,10 @@ class GroupDetailViewModel @AssistedInject constructor(
     val uiState: StateFlow<GroupDetailUiState> = _uiState.asStateFlow()
 
     private val myUserId: String = authRepository.getCurrentUserId()
+
+    init {
+        _uiState.update { it.copy(myUserId = myUserId) }
+    }
 
     val settlementDelegate = SettlementDelegate(
         groupId = groupId,
@@ -186,7 +206,37 @@ class GroupDetailViewModel @AssistedInject constructor(
                 _uiState.update { it.copy(inviteMembers = s) }
             }
         }
+
+        // Fetch forex rates, recompute CAD net and CAD-converted simplified payments
+        viewModelScope.launch {
+            balanceRepository.observeBalances(groupId).collect { rawBalances ->
+                val netCad = rawBalances
+                    .groupBy { it.currency }
+                    .entries
+                    .sumOf { (currency, rows) ->
+                        val sumCents = rows.sumOf { it.balanceCents }
+                        if (sumCents == 0L) return@sumOf 0L
+                        val rate = forexRepository.getRate(currency, Group.BASE_CURRENCY) ?: return@sumOf sumCents
+                        (sumCents * rate).toLong()
+                    }
+
+                // Build CAD-converted version of simplified payments
+                val cadPayments = _uiState.value.simplifiedPayments.map { p ->
+                    if (p.currency == Group.BASE_CURRENCY) p
+                    else {
+                        val rate = forexRepository.getRate(p.currency, Group.BASE_CURRENCY)
+                        if (rate != null)
+                            p.copy(amountCents = (p.amountCents * rate).toLong(), currency = Group.BASE_CURRENCY)
+                        else p
+                    }
+                }
+                _uiState.update { it.copy(netBalanceCad = netCad, cadSimplifiedPayments = cadPayments) }
+            }
+        }
     }
+
+    fun onToggleOnlyMine() = _uiState.update { it.copy(onlyMine = !it.onlyMine) }
+    fun onToggleConvertToCad() = _uiState.update { it.copy(convertToCad = !it.convertToCad) }
 
     // --- Settlement (forwarded to delegate) ---
     fun onMemberClick(userId: String, currency: String) =
