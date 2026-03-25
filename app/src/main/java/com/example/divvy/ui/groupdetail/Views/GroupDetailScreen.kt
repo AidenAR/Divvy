@@ -185,7 +185,7 @@ fun GroupDetailScreen(
                     // Toggles
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         FilterChip(
-                            label = "Only mine",
+                            label = "Only yours",
                             selected = uiState.onlyMine,
                             onClick = viewModel::onToggleOnlyMine
                         )
@@ -197,6 +197,44 @@ fun GroupDetailScreen(
                     }
                     Spacer(modifier = Modifier.height(10.dp))
                 }
+
+                // --- Individual Balances Section ---
+                if (uiState.displayedBalances.isEmpty()) {
+                    item {
+                        Text(
+                            text = "No individual balances to show.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                    }
+                } else {
+                    items(uiState.displayedBalances.size) { index ->
+                        val balance = uiState.displayedBalances[index]
+                        val isExpanded = uiState.expandedMemberId == balance.userId && uiState.expandedCurrency == balance.currency
+                        MemberBalanceCard(
+                            memberBalance  = balance,
+                            avatarColor    = AvatarColors[index % AvatarColors.size],
+                            isExpanded     = isExpanded,
+                            settleMode     = uiState.settleMode,
+                            settleAmount   = uiState.settleAmount,
+                            isSettling     = uiState.isSettling,
+                            onCardClick    = { viewModel.onMemberClick(balance.userId, balance.currency) },
+                            onModeSelect   = { mode -> viewModel.onSettleModeSelected(mode, balance.currency) },
+                            onAmountChange = viewModel::onSettleAmountChange,
+                            onConfirm      = { viewModel.onConfirmSettle() }
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                }
+
+                // --- Simplified Payments Section ---
+                item {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    SectionLabel("SUGGESTED REPAYMENTS")
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+
                 if (uiState.displayedPayments.isEmpty()) {
                     item {
                         Text(

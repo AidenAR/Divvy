@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -37,6 +38,7 @@ enum class SettleMode { Fully, Partially }
 data class GroupDetailUiState(
     val group: Group = Group(id = "", name = ""),
     val memberBalances: List<MemberBalance> = emptyList(),
+    val cadMemberBalances: List<MemberBalance> = emptyList(),
     val simplifiedPayments: List<SimplifiedPayment> = emptyList(),
     val cadSimplifiedPayments: List<SimplifiedPayment> = emptyList(),
     val activity: List<ActivityItem> = emptyList(),
@@ -72,6 +74,14 @@ data class GroupDetailUiState(
     val allProfiles get() = inviteMembers.allProfiles
     val inviteSearchQuery get() = inviteMembers.searchQuery
     val isAddingMember get() = inviteMembers.isAdding
+
+    /** The balances list to display after applying toggles */
+    val displayedBalances: List<MemberBalance> get() {
+        val base = if (convertToCad) cadMemberBalances else memberBalances
+        // If "Only mine" is ON, we hide $0 balances (which mean you aren't involved in a debt with them).
+        // If OFF, we show everyone, including settled up ($0) members.
+        return if (onlyMine) base.filter { it.balanceCents != 0L } else base
+    }
 
     /** The payments list to display after applying toggles */
     val displayedPayments: List<SimplifiedPayment> get() {
@@ -210,27 +220,48 @@ class GroupDetailViewModel @AssistedInject constructor(
         // Fetch forex rates, recompute CAD net and CAD-converted simplified payments
         viewModelScope.launch {
             balanceRepository.observeBalances(groupId).collect { rawBalances ->
-                val netCad = rawBalances
-                    .groupBy { it.currency }
-                    .entries
-                    .sumOf { (currency, rows) ->
-                        val sumCents = rows.sumOf { it.balanceCents }
-                        if (sumCents == 0L) return@sumOf 0L
-                        val rate = forexRepository.getRate(currency, Group.BASE_CURRENCY) ?: return@sumOf sumCents
-                        (sumCents * rate).toLong()
-                    }
-
-                // Build CAD-converted version of simplified payments
-                val cadPayments = _uiState.value.simplifiedPayments.map { p ->
-                    if (p.currency == Group.BASE_CURRENCY) p
-                    else {
-                        val rate = forexRepository.getRate(p.currency, Group.BASE_CURRENCY)
-                        if (rate != null)
-                            p.copy(amountCents = (p.amountCents * rate).toLong(), currency = Group.BASE_CURRENCY)
-                        else p
+                // Calculate net CAD by mathematically mirroring the exact truncation logic
+                // used for individual UI rows below to prevent rounding mismatches.
+                val netCad = rawBalances.sumOf { raw ->
+                    if (raw.currency == Group.BASE_CURRENCY) {
+                        raw.balanceCents
+                    } else {
+                        val rate = forexRepository.getRate(raw.currency, Group.BASE_CURRENCY) ?: 1.0
+                        (raw.balanceCents * rate).toLong()
                     }
                 }
-                _uiState.update { it.copy(netBalanceCad = netCad, cadSimplifiedPayments = cadPayments) }
+
+                // 1. Convert and merge direct Member Balances
+                val cadMemberBals = _uiState.value.memberBalances
+                    .groupBy { it.userId }
+                    .mapNotNull { (userId, balances) ->
+                        if (balances.isEmpty()) return@mapNotNull null
+                        val totalCad = balances.sumOf { b ->
+                            if (b.currency == Group.BASE_CURRENCY) b.balanceCents
+                            else {
+                                val rate = forexRepository.getRate(b.currency, Group.BASE_CURRENCY) ?: 1.0
+                                (b.balanceCents * rate).toLong()
+                            }
+                        }
+                        MemberBalance(
+                            userId = userId,
+                            name = balances.first().name,
+                            balanceCents = totalCad,
+                            currency = Group.BASE_CURRENCY
+                        )
+                    }
+
+                // 2. Fetch members quickly to satisfy the function parameter
+                val members = memberRepository.getMembers(groupId).first()
+
+                // 3. Reuse your existing simplifyPayments logic
+                val mergedCadPayments = simplifyPayments(cadMemberBals, members, myUserId)
+
+                _uiState.update { it.copy(
+                    netBalanceCad = netCad,
+                    cadMemberBalances = cadMemberBals,
+                    cadSimplifiedPayments = mergedCadPayments
+                ) }
             }
         }
     }
@@ -357,8 +388,8 @@ private data class GroupDetailData(
  * Splitwise-style debt simplification.
  *
  * The backend returns balances from the current user's perspective:
- *   positive balanceCents = that member owes the current user
- *   negative balanceCents = the current user owes that member
+ * positive balanceCents = that member owes the current user
+ * negative balanceCents = the current user owes that member
  *
  * The current user never appears as their own row, so we derive their
  * implicit balance per currency as the negated sum of all other rows.
