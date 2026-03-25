@@ -6,6 +6,7 @@ import com.example.divvy.backend.ActivityRepository
 import com.example.divvy.backend.AuthRepository
 import com.example.divvy.backend.BalanceRepository
 import com.example.divvy.backend.ExpensesRepository
+import com.example.divvy.backend.ForexRepository
 import com.example.divvy.backend.GroupRepository
 import com.example.divvy.backend.MemberRepository
 import com.example.divvy.backend.ProfilesRepository
@@ -16,6 +17,7 @@ import com.example.divvy.models.GroupExpense
 import com.example.divvy.models.GroupMember
 import com.example.divvy.models.MemberBalance
 import com.example.divvy.models.ProfileRow
+import com.example.divvy.models.SimplifiedPayment
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
@@ -24,6 +26,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -32,9 +35,20 @@ import java.util.Locale
 
 enum class SettleMode { Fully, Partially }
 
+data class UserBalanceGroup(
+    val userId: String,
+    val name: String,
+    val balances: List<MemberBalance>
+)
+
 data class GroupDetailUiState(
     val group: Group = Group(id = "", name = ""),
     val memberBalances: List<MemberBalance> = emptyList(),
+    val cadMemberBalances: List<MemberBalance> = emptyList(),
+    val groupNetBalances: List<MemberBalance> = emptyList(),
+    val cadGroupNetBalances: List<MemberBalance> = emptyList(),
+    val simplifiedPayments: List<SimplifiedPayment> = emptyList(),
+    val cadSimplifiedPayments: List<SimplifiedPayment> = emptyList(),
     val activity: List<ActivityItem> = emptyList(),
     val isLoading: Boolean = true,
     val showManageSheet: Boolean = false,
@@ -42,6 +56,13 @@ data class GroupDetailUiState(
     val deletedGroup: Boolean = false,
     val isCreator: Boolean = false,
     val currentMemberIds: Set<String> = emptySet(),
+    /** Net balance converted to CAD for the summary card. Null while rates are loading. */
+    val netBalanceCad: Long? = null,
+    val myUserId: String = "",
+    /** Toggle: only show transactions involving the current user (default on) */
+    val onlyMine: Boolean = true,
+    /** Toggle: convert all amounts to CAD (default off) */
+    val convertToCad: Boolean = false,
     // Delegate states
     val settlement: SettlementState = SettlementState(),
     val editGroup: EditGroupState = EditGroupState(),
@@ -61,6 +82,35 @@ data class GroupDetailUiState(
     val allProfiles get() = inviteMembers.allProfiles
     val inviteSearchQuery get() = inviteMembers.searchQuery
     val isAddingMember get() = inviteMembers.isAdding
+
+    /** The grouped balances list to display after applying toggles */
+    val displayedBalances: List<UserBalanceGroup> get() {
+        val base = if (onlyMine) {
+            if (convertToCad) cadMemberBalances else memberBalances
+        } else {
+            if (convertToCad) cadGroupNetBalances else groupNetBalances
+        }
+
+        return base.filter { it.balanceCents != 0L }
+            .groupBy { it.userId }
+            .map { (id, bals) ->
+                UserBalanceGroup(
+                    userId = id,
+                    name = bals.first().name,
+                    balances = bals.sortedByDescending { kotlin.math.abs(it.balanceCents) }
+                )
+            }
+            .sortedWith(
+                compareBy<UserBalanceGroup> { it.userId != myUserId } // Hoist 'You' to the top
+                    .thenBy { it.name }
+            )
+    }
+
+    /** The payments list to display after applying toggles */
+    val displayedPayments: List<SimplifiedPayment> get() {
+        val base = if (convertToCad) cadSimplifiedPayments else simplifiedPayments
+        return if (onlyMine) base.filter { it.fromIsCurrentUser || it.toIsCurrentUser } else base
+    }
 }
 
 @HiltViewModel(assistedFactory = GroupDetailViewModel.Factory::class)
@@ -72,7 +122,8 @@ class GroupDetailViewModel @AssistedInject constructor(
     private val balanceRepository: BalanceRepository,
     private val expensesRepository: ExpensesRepository,
     private val profilesRepository: ProfilesRepository,
-    private val activityRepository: ActivityRepository
+    private val activityRepository: ActivityRepository,
+    private val forexRepository: ForexRepository
 ) : ViewModel() {
 
     @AssistedFactory
@@ -84,6 +135,10 @@ class GroupDetailViewModel @AssistedInject constructor(
     val uiState: StateFlow<GroupDetailUiState> = _uiState.asStateFlow()
 
     private val myUserId: String = authRepository.getCurrentUserId()
+
+    init {
+        _uiState.update { it.copy(myUserId = myUserId) }
+    }
 
     val settlementDelegate = SettlementDelegate(
         groupId = groupId,
@@ -129,30 +184,52 @@ class GroupDetailViewModel @AssistedInject constructor(
                 balanceRepository.observeBalances(groupId),
                 expensesRepository.observeGroupExpenses(groupId)
             ) { group, members, rawBalances, expenses ->
-                // Group raw balances by (userId, currency) to support multi-currency
-                val memberBalances = members.flatMap { member ->
-                    val memberRawBalances = rawBalances.filter { it.userId == member.userId }
-                    if (memberRawBalances.isEmpty()) {
-                        listOf(MemberBalance(userId = member.userId, name = member.name, balanceCents = 0L))
-                    } else {
-                        memberRawBalances.map { raw ->
-                            MemberBalance(
-                                userId = member.userId,
-                                name = member.name,
-                                balanceCents = raw.balanceCents,
-                                currency = raw.currency
-                            )
+                val simplifiedPaymentsList = simplifyPayments(rawBalances, members, myUserId)
+
+                val memberBalances = members
+                    .filter { it.userId != myUserId }
+                    .flatMap { member ->
+                        val memberRawBalances = rawBalances.filter { it.userId == member.userId }
+                        if (memberRawBalances.isEmpty()) {
+                            listOf(MemberBalance(userId = member.userId, name = member.name, balanceCents = 0L))
+                        } else {
+                            memberRawBalances.map { raw ->
+                                MemberBalance(
+                                    userId = member.userId,
+                                    name = member.name,
+                                    balanceCents = raw.balanceCents,
+                                    currency = raw.currency
+                                )
+                            }
                         }
                     }
+
+                // Calculate Group Net Balances (Toggle Off State)
+                val groupNetBals = mutableListOf<MemberBalance>()
+                val currencies = memberBalances.map { it.currency }.distinct()
+                for (currency in currencies) {
+                    val rows = memberBalances.filter { it.currency == currency }
+                    var myNet = 0L
+                    for (mb in rows) {
+                        myNet += mb.balanceCents
+                        // If they owe you $10, their net is -$10 (they owe overall)
+                        groupNetBals.add(MemberBalance(mb.userId, mb.name, -mb.balanceCents, currency))
+                    }
+                    if (myNet != 0L) {
+                        groupNetBals.add(MemberBalance(myUserId, "You", myNet, currency))
+                    }
                 }
+
                 val activity = buildActivity(expenses, members)
                 val memberIds = members.map { it.userId }.toSet() + myUserId
-                GroupDetailData(group, memberBalances, activity, memberIds)
+                GroupDetailData(group, memberBalances, groupNetBals, simplifiedPaymentsList, activity, memberIds)
             }.collect { data ->
                 _uiState.update { current ->
                     current.copy(
                         group = data.group,
                         memberBalances = data.memberBalances,
+                        groupNetBalances = data.groupNetBalances,
+                        simplifiedPayments = data.simplifiedPayments,
                         activity = data.activity,
                         isLoading = false,
                         isCreator = data.group.createdBy == myUserId,
@@ -177,13 +254,73 @@ class GroupDetailViewModel @AssistedInject constructor(
                 _uiState.update { it.copy(inviteMembers = s) }
             }
         }
+
+        // Fetch forex rates, recompute CAD net and CAD-converted simplified payments
+        viewModelScope.launch {
+            balanceRepository.observeBalances(groupId).collect { rawBalances ->
+                val netCad = rawBalances.sumOf { raw ->
+                    if (raw.currency == Group.BASE_CURRENCY) {
+                        raw.balanceCents
+                    } else {
+                        val rate = forexRepository.getRate(raw.currency, Group.BASE_CURRENCY) ?: 1.0
+                        (raw.balanceCents * rate).toLong()
+                    }
+                }
+
+                // 1. Convert and merge direct Member Balances
+                val cadMemberBals = _uiState.value.memberBalances
+                    .groupBy { it.userId }
+                    .mapNotNull { (userId, balances) ->
+                        if (balances.isEmpty()) return@mapNotNull null
+                        val totalCad = balances.sumOf { b ->
+                            if (b.currency == Group.BASE_CURRENCY) b.balanceCents
+                            else {
+                                val rate = forexRepository.getRate(b.currency, Group.BASE_CURRENCY) ?: 1.0
+                                (b.balanceCents * rate).toLong()
+                            }
+                        }
+                        MemberBalance(
+                            userId = userId,
+                            name = balances.first().name,
+                            balanceCents = totalCad,
+                            currency = Group.BASE_CURRENCY
+                        )
+                    }
+
+                // 2. Calculate Group Net Balances in CAD (Toggle Off State)
+                val cadGroupNetBals = mutableListOf<MemberBalance>()
+                var myCadNet = 0L
+                for (mb in cadMemberBals) {
+                    myCadNet += mb.balanceCents
+                    cadGroupNetBals.add(MemberBalance(mb.userId, mb.name, -mb.balanceCents, Group.BASE_CURRENCY))
+                }
+                if (myCadNet != 0L) {
+                    cadGroupNetBals.add(MemberBalance(myUserId, "You", myCadNet, Group.BASE_CURRENCY))
+                }
+
+                // 3. Reuse your existing simplifyPayments logic
+                val members = memberRepository.getMembers(groupId).first()
+                val mergedCadPayments = simplifyPayments(cadMemberBals, members, myUserId)
+
+                _uiState.update { it.copy(
+                    netBalanceCad = netCad,
+                    cadMemberBalances = cadMemberBals,
+                    cadGroupNetBalances = cadGroupNetBals,
+                    cadSimplifiedPayments = mergedCadPayments
+                ) }
+            }
+        }
     }
 
+    fun onToggleOnlyMine() = _uiState.update { it.copy(onlyMine = !it.onlyMine) }
+    fun onToggleConvertToCad() = _uiState.update { it.copy(convertToCad = !it.convertToCad) }
+
     // --- Settlement (forwarded to delegate) ---
-    fun onMemberClick(userId: String, currency: String) = settlementDelegate.onMemberClick(userId, currency)
+    fun onMemberClick(userId: String, currency: String) =
+        settlementDelegate.onMemberClick(userId, currency, _uiState.value.simplifiedPayments)
     fun onSettleModeSelected(mode: SettleMode, currency: String = "USD") = settlementDelegate.onSettleModeSelected(mode, currency)
     fun onSettleAmountChange(value: String) = settlementDelegate.onSettleAmountChange(value)
-    fun onConfirmSettle(userId: String) = settlementDelegate.onConfirmSettle(userId)
+    fun onConfirmSettle() = settlementDelegate.onConfirmSettle()
 
     // --- Manage actions ---
     fun onShowManageSheet() {
@@ -238,16 +375,12 @@ class GroupDetailViewModel @AssistedInject constructor(
                 val paidByCurrentUser = expense.paidByUserId == myUserId
 
                 val displayAmountCents = if (paidByCurrentUser) {
-                    // I paid: others owe me (total − my effective share).
-                    // If my split is covered by someone, my effective share is 0.
                     val myEffectiveShare = expense.splits
                         .find { it.userId == myUserId }
                         ?.let { if (it.isCoveredBy != null) 0L else it.amountCents }
                         ?: 0L
                     expense.amountCents - myEffectiveShare
                 } else {
-                    // Someone else paid: I owe my own share (0 if covered)
-                    // plus any other members' shares that I'm covering.
                     val myDirectShare = expense.splits
                         .find { it.userId == myUserId }
                         ?.let { if (it.isCoveredBy != null) 0L else it.amountCents }
@@ -288,6 +421,66 @@ class GroupDetailViewModel @AssistedInject constructor(
 private data class GroupDetailData(
     val group: Group,
     val memberBalances: List<MemberBalance>,
+    val groupNetBalances: List<MemberBalance>,
+    val simplifiedPayments: List<SimplifiedPayment>,
     val activity: List<ActivityItem>,
     val memberIds: Set<String>
 )
+
+private fun simplifyPayments(
+    memberBalances: List<MemberBalance>,
+    members: List<GroupMember>,
+    myUserId: String
+): List<SimplifiedPayment> {
+    val nameMap = members.associate { it.userId to it.name }
+    val currencies = memberBalances.map { it.currency }.distinct()
+    val result = mutableListOf<SimplifiedPayment>()
+
+    for (currency in currencies) {
+        val rows = memberBalances.filter { it.currency == currency }
+        val absoluteBalances = LinkedHashMap<String, Long>()
+        var myBalance = 0L
+        for (mb in rows) {
+            absoluteBalances[mb.userId] = (absoluteBalances[mb.userId] ?: 0L) - mb.balanceCents
+            myBalance += mb.balanceCents
+        }
+        if (myBalance != 0L) absoluteBalances[myUserId] = myBalance
+
+        val creditors = java.util.PriorityQueue<Pair<String, Long>>(compareByDescending { it.second })
+        val debtors   = java.util.PriorityQueue<Pair<String, Long>>(compareByDescending { it.second })
+
+        for ((uid, bal) in absoluteBalances) {
+            when {
+                bal > 0L -> creditors.add(uid to bal)
+                bal < 0L -> debtors.add(uid to -bal)
+            }
+        }
+
+        while (creditors.isNotEmpty() && debtors.isNotEmpty()) {
+            val (creditor, credit) = creditors.poll()!!
+            val (debtor,  debt)   = debtors.poll()!!
+
+            val amount = minOf(credit, debt)
+            result.add(
+                SimplifiedPayment(
+                    fromUserId        = debtor,
+                    fromName          = nameMap[debtor] ?: debtor,
+                    toUserId          = creditor,
+                    toName            = nameMap[creditor] ?: creditor,
+                    amountCents       = amount,
+                    currency          = currency,
+                    fromIsCurrentUser = debtor == myUserId,
+                    toIsCurrentUser   = creditor == myUserId
+                )
+            )
+
+            val remaining = credit - debt
+            when {
+                remaining > 0L -> creditors.add(creditor to remaining)
+                remaining < 0L -> debtors.add(debtor to -remaining)
+            }
+        }
+    }
+
+    return result.sortedWith(compareBy<SimplifiedPayment> { it.currency }.thenByDescending { it.amountCents })
+}

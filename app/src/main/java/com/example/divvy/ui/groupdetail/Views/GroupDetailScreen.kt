@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -68,11 +69,12 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.example.divvy.components.GroupIcon
 import com.example.divvy.models.ActivityItem
-import com.example.divvy.models.MemberBalance
+import com.example.divvy.models.SimplifiedPayment
 import com.example.divvy.models.SupportedCurrency
 import com.example.divvy.models.formatAmount
 import com.example.divvy.ui.groupdetail.ViewModels.GroupDetailViewModel
 import com.example.divvy.ui.groupdetail.ViewModels.SettleMode
+import com.example.divvy.ui.groupdetail.ViewModels.UserBalanceGroup
 import com.example.divvy.ui.theme.AvatarColors
 import com.example.divvy.ui.theme.DmSansFamily
 import com.example.divvy.ui.theme.NegativeRed
@@ -166,9 +168,13 @@ fun GroupDetailScreen(
 
                 item {
                     Spacer(modifier = Modifier.height(8.dp))
+                    val netCad = uiState.netBalanceCad
                     BalanceSummaryCard(
-                        balanceCents = uiState.group.balanceCents,
-                        formattedBalance = uiState.group.formattedBalance
+                        balanceCents = netCad ?: uiState.group.balanceCents,
+                        formattedBalance = if (netCad != null)
+                            "${formatAmount(netCad, "CAD")}"
+                        else
+                            uiState.group.formattedBalance
                     )
                     Spacer(modifier = Modifier.height(24.dp))
                 }
@@ -176,22 +182,88 @@ fun GroupDetailScreen(
                 item {
                     SectionLabel("BALANCES")
                     Spacer(modifier = Modifier.height(10.dp))
+                    // Toggles
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(
+                            label = "Only yours",
+                            selected = uiState.onlyMine,
+                            onClick = viewModel::onToggleOnlyMine
+                        )
+                        FilterChip(
+                            label = "All in CAD",
+                            selected = uiState.convertToCad,
+                            onClick = viewModel::onToggleConvertToCad
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
                 }
-                items(uiState.memberBalances) { mb ->
-                    val isExpanded = uiState.expandedMemberId == mb.userId && uiState.expandedCurrency == mb.currency
-                    MemberBalanceCard(
-                        memberBalance  = mb,
-                        avatarColor    = AvatarColors[uiState.memberBalances.indexOf(mb) % AvatarColors.size],
-                        isExpanded     = isExpanded,
-                        settleMode     = uiState.settleMode,
-                        settleAmount   = uiState.settleAmount,
-                        isSettling     = uiState.isSettling,
-                        onCardClick    = { viewModel.onMemberClick(mb.userId, mb.currency) },
-                        onModeSelect   = { mode -> viewModel.onSettleModeSelected(mode, mb.currency) },
-                        onAmountChange = viewModel::onSettleAmountChange,
-                        onConfirm      = { viewModel.onConfirmSettle(mb.userId) }
-                    )
+
+                // --- Individual Balances Section (Grouped by User) ---
+                if (uiState.displayedBalances.isEmpty()) {
+                    item {
+                        Text(
+                            text = "No balances to show.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                    }
+                } else {
+                    items(uiState.displayedBalances.size) { index ->
+                        val userGroup = uiState.displayedBalances[index]
+                        val showNet = !uiState.onlyMine
+                        val expandedCurrency = if (!showNet && uiState.expandedMemberId == userGroup.userId) uiState.expandedCurrency else null
+
+                        MemberBalanceGroupCard(
+                            userGroup      = userGroup,
+                            avatarColor    = AvatarColors[index % AvatarColors.size],
+                            expandedCurrency = expandedCurrency,
+                            showNetBalance = showNet,
+                            settleMode     = uiState.settleMode,
+                            settleAmount   = uiState.settleAmount,
+                            isSettling     = uiState.isSettling,
+                            onCurrencyClick = { currency -> viewModel.onMemberClick(userGroup.userId, currency) },
+                            onModeSelect   = { mode, currency -> viewModel.onSettleModeSelected(mode, currency) },
+                            onAmountChange = viewModel::onSettleAmountChange,
+                            onConfirm      = { viewModel.onConfirmSettle() }
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                }
+
+                // --- Simplified Payments Section ---
+                item {
                     Spacer(modifier = Modifier.height(8.dp))
+                    SectionLabel("SUGGESTED REPAYMENTS")
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+
+                if (uiState.displayedPayments.isEmpty()) {
+                    item {
+                        Text(
+                            text = if (uiState.simplifiedPayments.isEmpty()) "All settled up!" else "No transactions match the current filter.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                    }
+                } else {
+                    items(uiState.displayedPayments.size) { index ->
+                        val payment = uiState.displayedPayments[index]
+                        val isExpanded = uiState.expandedMemberId == payment.fromUserId && uiState.expandedCurrency == payment.currency
+                        SimplifiedPaymentCard(
+                            payment        = payment,
+                            isExpanded     = isExpanded,
+                            settleMode     = uiState.settleMode,
+                            settleAmount   = uiState.settleAmount,
+                            isSettling     = uiState.isSettling,
+                            onCardClick    = { viewModel.onMemberClick(payment.fromUserId, payment.currency) },
+                            onModeSelect   = { mode -> viewModel.onSettleModeSelected(mode, payment.currency) },
+                            onAmountChange = viewModel::onSettleAmountChange,
+                            onConfirm      = { viewModel.onConfirmSettle() }
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
                 }
 
                 item {
@@ -591,44 +663,31 @@ private fun SectionLabel(text: String) {
 }
 
 @Composable
-private fun MemberBalanceCard(
-    memberBalance: MemberBalance,
+private fun MemberBalanceGroupCard(
+    userGroup: UserBalanceGroup,
     avatarColor: Color,
-    isExpanded: Boolean,
+    expandedCurrency: String?,
+    showNetBalance: Boolean,
     settleMode: SettleMode?,
     settleAmount: String,
     isSettling: Boolean,
-    onCardClick: () -> Unit,
-    onModeSelect: (SettleMode) -> Unit,
+    onCurrencyClick: (String) -> Unit,
+    onModeSelect: (SettleMode, String) -> Unit,
     onAmountChange: (String) -> Unit,
     onConfirm: () -> Unit
 ) {
-    val isSettled = memberBalance.balanceCents == 0L
-    val isOwedByThem = memberBalance.balanceCents > 0
-    val arrowLabel = when {
-        isSettled -> "settled up"
-        isOwedByThem -> "owes you"
-        else -> "you owe"
-    }
-    val amountColor = when {
-        isSettled -> MaterialTheme.colorScheme.onSurfaceVariant
-        isOwedByThem -> PositiveGreen
-        else -> NegativeRed
-    }
-    val amount = formatAmount(memberBalance.balanceCents, memberBalance.currency)
-
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(MaterialTheme.colorScheme.surface)
             .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
-            .clickable(onClick = onCardClick)
     ) {
+        // Header
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
+                .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
@@ -639,7 +698,7 @@ private fun MemberBalanceCard(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = memberBalance.name.first().toString(),
+                    text = userGroup.name.first().toString(),
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp
@@ -649,115 +708,160 @@ private fun MemberBalanceCard(
             Spacer(modifier = Modifier.width(12.dp))
 
             Text(
-                text = memberBalance.name,
+                text = userGroup.name,
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier.weight(1f)
             )
-
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    text = amount,
-                    style = MaterialTheme.typography.titleSmall,
-                    color = amountColor
-                )
-                Text(
-                    text = arrowLabel,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
         }
 
-        AnimatedVisibility(visible = isExpanded) {
-            Column(
-                modifier = Modifier
-                    .padding(horizontal = 16.dp)
-                    .padding(bottom = 14.dp)
-            ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SettleChip(
-                        label = "Paid Fully",
-                        selected = settleMode == SettleMode.Fully,
-                        onClick = { onModeSelect(SettleMode.Fully) }
-                    )
-                    SettleChip(
-                        label = "Paid Partially",
-                        selected = settleMode == SettleMode.Partially,
-                        onClick = { onModeSelect(SettleMode.Partially) }
+        // Balances inside the User's Card
+        userGroup.balances.forEachIndexed { index, memberBalance ->
+            val isSettled = memberBalance.balanceCents == 0L
+            val isPositive = memberBalance.balanceCents > 0
+
+            val arrowLabel = if (showNetBalance) {
+                when {
+                    isSettled -> "settled up"
+                    isPositive -> "gets back"
+                    else -> "owes overall"
+                }
+            } else {
+                when {
+                    isSettled -> "settled up"
+                    isPositive -> "owes you"
+                    else -> "you owe"
+                }
+            }
+
+            val amountColor = when {
+                isSettled -> MaterialTheme.colorScheme.onSurfaceVariant
+                isPositive -> PositiveGreen
+                else -> NegativeRed
+            }
+            val displayAmount = formatAmount(kotlin.math.abs(memberBalance.balanceCents), memberBalance.currency)
+            val isExpanded = expandedCurrency == memberBalance.currency
+
+            Column {
+                if (index > 0) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
                     )
                 }
 
-                AnimatedVisibility(visible = settleMode == SettleMode.Partially) {
-                    Column {
-                        Spacer(Modifier.height(10.dp))
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                                .padding(horizontal = 14.dp, vertical = 12.dp)
-                        ) {
-                            BasicTextField(
-                                value = settleAmount,
-                                onValueChange = onAmountChange,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                textStyle = TextStyle(
-                                    fontFamily = DmSansFamily,
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onBackground
-                                ),
-                                decorationBox = { innerTextField ->
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(
-                                            text = SupportedCurrency.fromCode(memberBalance.currency).symbol,
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = !showNetBalance) { onCurrencyClick(memberBalance.currency) }
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = arrowLabel,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = displayAmount,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = amountColor
+                    )
+                }
+
+                AnimatedVisibility(visible = isExpanded) {
+                    Column(
+                        modifier = Modifier
+                            .padding(horizontal = 16.dp)
+                            .padding(bottom = 14.dp)
+                    ) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            SettleChip(
+                                label = "Paid Fully",
+                                selected = settleMode == SettleMode.Fully,
+                                onClick = { onModeSelect(SettleMode.Fully, memberBalance.currency) }
+                            )
+                            SettleChip(
+                                label = "Paid Partially",
+                                selected = settleMode == SettleMode.Partially,
+                                onClick = { onModeSelect(SettleMode.Partially, memberBalance.currency) }
+                            )
+                        }
+
+                        AnimatedVisibility(visible = settleMode == SettleMode.Partially) {
+                            Column {
+                                Spacer(Modifier.height(10.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                                        .padding(horizontal = 14.dp, vertical = 12.dp)
+                                ) {
+                                    BasicTextField(
+                                        value = settleAmount,
+                                        onValueChange = onAmountChange,
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                        textStyle = TextStyle(
                                             fontFamily = DmSansFamily,
                                             fontSize = 16.sp,
                                             fontWeight = FontWeight.Medium,
                                             color = MaterialTheme.colorScheme.onBackground
-                                        )
-                                        innerTextField()
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            )
+                                        ),
+                                        decorationBox = { innerTextField ->
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(
+                                                    text = SupportedCurrency.fromCode(memberBalance.currency).symbol,
+                                                    fontFamily = DmSansFamily,
+                                                    fontSize = 16.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = MaterialTheme.colorScheme.onBackground
+                                                )
+                                                innerTextField()
+                                            }
+                                        },
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
+                            }
                         }
-                    }
-                }
 
-                Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(12.dp))
 
-                val canConfirm = settleMode != null &&
-                    (settleMode == SettleMode.Fully || settleAmount.toDoubleOrNull()?.let { it > 0 } == true)
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(44.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(
-                            if (canConfirm && !isSettling) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.outline
-                        )
-                        .clickable(enabled = canConfirm && !isSettling) { onConfirm() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (isSettling) {
-                        CircularProgressIndicator(
-                            color = Color.White,
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp
-                        )
-                    } else {
-                        Text(
-                            text = "Confirm",
-                            color = Color.White,
-                            style = MaterialTheme.typography.titleSmall,
-                        )
+                        val canConfirm = settleMode != null &&
+                                (settleMode == SettleMode.Fully || settleAmount.toDoubleOrNull()?.let { it > 0 } == true)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(44.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    if (canConfirm && !isSettling) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.outline
+                                )
+                                .clickable(enabled = canConfirm && !isSettling) { onConfirm() },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isSettling) {
+                                CircularProgressIndicator(
+                                    color = Color.White,
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Text(
+                                    text = "Confirm",
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.titleSmall,
+                                )
+                            }
+                        }
                     }
                 }
             }
         }
+        Spacer(modifier = Modifier.height(4.dp))
     }
 }
 
@@ -785,6 +889,192 @@ private fun SettleChip(label: String, selected: Boolean, onClick: () -> Unit) {
             style = MaterialTheme.typography.bodySmall,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
         )
+    }
+}
+
+@Composable
+private fun FilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(
+                if (selected) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.surfaceVariant
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 7.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+        )
+    }
+}
+
+@Composable
+private fun SimplifiedPaymentCard(
+    payment: SimplifiedPayment,
+    isExpanded: Boolean,
+    settleMode: SettleMode?,
+    settleAmount: String,
+    isSettling: Boolean,
+    onCardClick: () -> Unit,
+    onModeSelect: (SettleMode) -> Unit,
+    onAmountChange: (String) -> Unit,
+    onConfirm: () -> Unit
+) {
+    val currency = SupportedCurrency.fromCode(payment.currency)
+    val amount = formatAmount(payment.amountCents, payment.currency)
+    val fromLabel = if (payment.fromIsCurrentUser) "You" else payment.fromName
+    val toLabel   = if (payment.toIsCurrentUser)   "You" else payment.toName
+    val bgColor = when {
+        payment.fromIsCurrentUser -> NegativeRedLight
+        payment.toIsCurrentUser   -> PositiveGreenLight
+        else                      -> MaterialTheme.colorScheme.surface
+    }
+    val accentColor = when {
+        payment.fromIsCurrentUser -> NegativeRed
+        payment.toIsCurrentUser   -> PositiveGreen
+        else                      -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(bgColor)
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
+            .clickable(onClick = onCardClick)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = fromLabel,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Icon(
+                        imageVector = Icons.Default.ArrowForward,
+                        contentDescription = null,
+                        tint = accentColor,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = toLabel,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                }
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = when {
+                        payment.fromIsCurrentUser -> "You owe"
+                        payment.toIsCurrentUser   -> "You get back"
+                        else                      -> "Transfer"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = accentColor
+                )
+            }
+            Text(
+                text = amount,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = accentColor
+            )
+        }
+
+        AnimatedVisibility(visible = isExpanded) {
+            Column(
+                modifier = Modifier
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 14.dp)
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SettleChip(
+                        label = "Paid Fully",
+                        selected = settleMode == SettleMode.Fully,
+                        onClick = { onModeSelect(SettleMode.Fully) }
+                    )
+                    SettleChip(
+                        label = "Paid Partially",
+                        selected = settleMode == SettleMode.Partially,
+                        onClick = { onModeSelect(SettleMode.Partially) }
+                    )
+                }
+                AnimatedVisibility(visible = settleMode == SettleMode.Partially) {
+                    Column {
+                        Spacer(Modifier.height(10.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .padding(horizontal = 14.dp, vertical = 12.dp)
+                        ) {
+                            BasicTextField(
+                                value = settleAmount,
+                                onValueChange = onAmountChange,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                textStyle = TextStyle(
+                                    fontFamily = DmSansFamily,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onBackground
+                                ),
+                                decorationBox = { innerTextField ->
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = currency.symbol,
+                                            fontFamily = DmSansFamily,
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = MaterialTheme.colorScheme.onBackground
+                                        )
+                                        innerTextField()
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                val canConfirm = settleMode != null &&
+                        (settleMode == SettleMode.Fully || settleAmount.toDoubleOrNull()?.let { it > 0 } == true)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(
+                            if (canConfirm && !isSettling) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.outline
+                        )
+                        .clickable(enabled = canConfirm && !isSettling) { onConfirm() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isSettling) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text("Confirm", color = Color.White, style = MaterialTheme.typography.titleSmall)
+                    }
+                }
+            }
+        }
     }
 }
 

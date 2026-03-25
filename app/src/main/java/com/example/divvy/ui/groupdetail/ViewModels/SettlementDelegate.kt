@@ -5,6 +5,7 @@ import com.example.divvy.backend.ExpensesRepository
 import com.example.divvy.backend.GroupRepository
 import com.example.divvy.models.ExpenseSplit
 import com.example.divvy.models.MemberBalance
+import com.example.divvy.models.SimplifiedPayment
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -18,7 +19,10 @@ data class SettlementState(
     val settleMode: SettleMode? = null,
     val settleAmount: String = "",
     val isSettling: Boolean = false,
-    val currency: String = "USD"
+    val currency: String = "USD",
+    val expandedFromUserId: String? = null,
+    val expandedToUserId: String? = null,
+    val expandedAmountCents: Long = 0L
 )
 
 class SettlementDelegate(
@@ -33,21 +37,41 @@ class SettlementDelegate(
     private val _state = MutableStateFlow(SettlementState())
     val state: StateFlow<SettlementState> = _state.asStateFlow()
 
-    fun onMemberClick(userId: String, currency: String) {
+    /**
+     * Called when a SimplifiedPaymentCard is tapped.
+     * fromUserId/toUserId/amountCents come directly from the SimplifiedPayment —
+     * direction is always correct, no re-derivation needed.
+     */
+    fun onMemberClick(
+        userId: String,
+        currency: String,
+        simplifiedPayments: List<SimplifiedPayment>
+    ) {
         _state.update { s ->
-            if (s.expandedMemberId == userId && s.expandedCurrency == currency)
-                s.copy(expandedMemberId = null, expandedCurrency = null, settleMode = null, settleAmount = "")
-            else
-                s.copy(expandedMemberId = userId, expandedCurrency = currency, settleMode = null, settleAmount = "", currency = currency)
+            if (s.expandedMemberId == userId && s.expandedCurrency == currency) {
+                SettlementState()
+            } else {
+                val payment = simplifiedPayments.firstOrNull { p ->
+                    p.currency == currency && p.fromUserId == userId
+                }
+                s.copy(
+                    expandedMemberId   = userId,
+                    expandedCurrency   = currency,
+                    expandedFromUserId = payment?.fromUserId,
+                    expandedToUserId   = payment?.toUserId,
+                    expandedAmountCents = payment?.amountCents ?: 0L,
+                    currency           = currency,
+                    settleMode         = null,
+                    settleAmount       = ""
+                )
+            }
         }
     }
 
     fun onSettleModeSelected(mode: SettleMode, currency: String = "USD") {
         _state.update { s ->
-            val balance = getMemberBalances()
-                .find { it.userId == s.expandedMemberId && it.currency == currency }?.balanceCents ?: 0L
             val amount = if (mode == SettleMode.Fully) {
-                String.format("%.2f", kotlin.math.abs(balance) / 100.0)
+                String.format("%.2f", s.expandedAmountCents / 100.0)
             } else ""
             s.copy(settleMode = mode, settleAmount = amount, currency = currency)
         }
@@ -61,34 +85,27 @@ class SettlementDelegate(
         _state.update { it.copy(settleAmount = filtered) }
     }
 
-    fun onConfirmSettle(userId: String) {
+    fun onConfirmSettle() {
         val s = _state.value
-        val amountCents = (s.settleAmount.toDoubleOrNull() ?: return).let {
-            (it * 100).toLong()
-        }
+        val fromUserId  = s.expandedFromUserId ?: return
+        val toUserId    = s.expandedToUserId   ?: return
+        val amountCents = (s.settleAmount.toDoubleOrNull() ?: return).let { (it * 100).toLong() }
         if (amountCents <= 0) return
-        val balance = getMemberBalances()
-            .find { it.userId == userId && it.currency == s.currency }?.balanceCents ?: return
-
-        val (paidBy, splitUserId) = if (balance < 0)
-            Pair(myUserId, userId) else Pair(userId, myUserId)
 
         scope.launch {
             _state.update { it.copy(isSettling = true) }
             expensesRepository.createExpenseWithSplits(
-                groupId = groupId,
-                description = "Settlement",
-                amountCents = amountCents,
-                currency = s.currency,
-                splitMethod = "SETTLEMENT",
-                paidByUserId = paidBy,
-                splits = listOf(ExpenseSplit(splitUserId, amountCents))
+                groupId      = groupId,
+                description  = "Settlement",
+                amountCents  = amountCents,
+                currency     = s.currency,
+                splitMethod  = "SETTLEMENT",
+                paidByUserId = fromUserId,
+                splits       = listOf(ExpenseSplit(toUserId, amountCents))
             )
             balanceRepository.refreshBalances(groupId)
             groupRepository.refreshGroups()
-            _state.update {
-                SettlementState()
-            }
+            _state.update { SettlementState() }
         }
     }
 }
