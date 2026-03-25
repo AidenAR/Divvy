@@ -202,7 +202,7 @@ fun GroupDetailScreen(
                 if (uiState.displayedBalances.isEmpty()) {
                     item {
                         Text(
-                            text = "No individual balances to show.",
+                            text = "No balances to show.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(bottom = 8.dp)
@@ -211,11 +211,14 @@ fun GroupDetailScreen(
                 } else {
                     items(uiState.displayedBalances.size) { index ->
                         val balance = uiState.displayedBalances[index]
-                        val isExpanded = uiState.expandedMemberId == balance.userId && uiState.expandedCurrency == balance.currency
+                        val showNet = !uiState.onlyMine
+                        val isExpanded = !showNet && uiState.expandedMemberId == balance.userId && uiState.expandedCurrency == balance.currency
+
                         MemberBalanceCard(
                             memberBalance  = balance,
                             avatarColor    = AvatarColors[index % AvatarColors.size],
                             isExpanded     = isExpanded,
+                            showNetBalance = showNet,
                             settleMode     = uiState.settleMode,
                             settleAmount   = uiState.settleAmount,
                             isSettling     = uiState.isSettling,
@@ -664,6 +667,7 @@ private fun MemberBalanceCard(
     memberBalance: MemberBalance,
     avatarColor: Color,
     isExpanded: Boolean,
+    showNetBalance: Boolean,
     settleMode: SettleMode?,
     settleAmount: String,
     isSettling: Boolean,
@@ -673,18 +677,30 @@ private fun MemberBalanceCard(
     onConfirm: () -> Unit
 ) {
     val isSettled = memberBalance.balanceCents == 0L
-    val isOwedByThem = memberBalance.balanceCents > 0
-    val arrowLabel = when {
-        isSettled -> "settled up"
-        isOwedByThem -> "owes you"
-        else -> "you owe"
+    val isPositive = memberBalance.balanceCents > 0
+
+    val arrowLabel = if (showNetBalance) {
+        when {
+            isSettled -> "settled up"
+            isPositive -> "gets back"
+            else -> "owes overall"
+        }
+    } else {
+        when {
+            isSettled -> "settled up"
+            isPositive -> "owes you"
+            else -> "you owe"
+        }
     }
+
     val amountColor = when {
         isSettled -> MaterialTheme.colorScheme.onSurfaceVariant
-        isOwedByThem -> PositiveGreen
+        isPositive -> PositiveGreen
         else -> NegativeRed
     }
-    val amount = formatAmount(memberBalance.balanceCents, memberBalance.currency)
+    // We pass absolute value here so negative signs don't show up twice
+    // (e.g. we want "owes overall $10", not "owes overall -$10")
+    val displayAmount = formatAmount(kotlin.math.abs(memberBalance.balanceCents), memberBalance.currency)
 
     Column(
         modifier = Modifier
@@ -692,7 +708,7 @@ private fun MemberBalanceCard(
             .clip(RoundedCornerShape(12.dp))
             .background(MaterialTheme.colorScheme.surface)
             .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
-            .clickable(onClick = onCardClick)
+            .clickable(enabled = !showNetBalance, onClick = onCardClick)
     ) {
         Row(
             modifier = Modifier
@@ -726,7 +742,7 @@ private fun MemberBalanceCard(
 
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    text = amount,
+                    text = displayAmount,
                     style = MaterialTheme.typography.titleSmall,
                     color = amountColor
                 )

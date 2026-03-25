@@ -39,6 +39,8 @@ data class GroupDetailUiState(
     val group: Group = Group(id = "", name = ""),
     val memberBalances: List<MemberBalance> = emptyList(),
     val cadMemberBalances: List<MemberBalance> = emptyList(),
+    val groupNetBalances: List<MemberBalance> = emptyList(),
+    val cadGroupNetBalances: List<MemberBalance> = emptyList(),
     val simplifiedPayments: List<SimplifiedPayment> = emptyList(),
     val cadSimplifiedPayments: List<SimplifiedPayment> = emptyList(),
     val activity: List<ActivityItem> = emptyList(),
@@ -77,10 +79,13 @@ data class GroupDetailUiState(
 
     /** The balances list to display after applying toggles */
     val displayedBalances: List<MemberBalance> get() {
-        val base = if (convertToCad) cadMemberBalances else memberBalances
-        // If "Only mine" is ON, we hide $0 balances (which mean you aren't involved in a debt with them).
-        // If OFF, we show everyone, including settled up ($0) members.
-        return if (onlyMine) base.filter { it.balanceCents != 0L } else base
+        return if (onlyMine) {
+            val base = if (convertToCad) cadMemberBalances else memberBalances
+            base.filter { it.balanceCents != 0L }
+        } else {
+            val base = if (convertToCad) cadGroupNetBalances else groupNetBalances
+            base.filter { it.balanceCents != 0L }.sortedByDescending { it.balanceCents }
+        }
     }
 
     /** The payments list to display after applying toggles */
@@ -161,9 +166,6 @@ class GroupDetailViewModel @AssistedInject constructor(
                 balanceRepository.observeBalances(groupId),
                 expensesRepository.observeGroupExpenses(groupId)
             ) { group, members, rawBalances, expenses ->
-                // Build display balances from raw backend data — shows what each person
-                // directly owes/is owed. Simplified payments are computed separately and
-                // used only to determine correct settle direction.
                 val simplifiedPaymentsList = simplifyPayments(rawBalances, members, myUserId)
 
                 val memberBalances = members
@@ -183,14 +185,32 @@ class GroupDetailViewModel @AssistedInject constructor(
                             }
                         }
                     }
+
+                // Calculate Group Net Balances (Toggle Off State)
+                val groupNetBals = mutableListOf<MemberBalance>()
+                val currencies = memberBalances.map { it.currency }.distinct()
+                for (currency in currencies) {
+                    val rows = memberBalances.filter { it.currency == currency }
+                    var myNet = 0L
+                    for (mb in rows) {
+                        myNet += mb.balanceCents
+                        // If they owe you $10, their net is -$10 (they owe overall)
+                        groupNetBals.add(MemberBalance(mb.userId, mb.name, -mb.balanceCents, currency))
+                    }
+                    if (myNet != 0L) {
+                        groupNetBals.add(MemberBalance(myUserId, "You", myNet, currency))
+                    }
+                }
+
                 val activity = buildActivity(expenses, members)
                 val memberIds = members.map { it.userId }.toSet() + myUserId
-                GroupDetailData(group, memberBalances, simplifiedPaymentsList, activity, memberIds)
+                GroupDetailData(group, memberBalances, groupNetBals, simplifiedPaymentsList, activity, memberIds)
             }.collect { data ->
                 _uiState.update { current ->
                     current.copy(
                         group = data.group,
                         memberBalances = data.memberBalances,
+                        groupNetBalances = data.groupNetBalances,
                         simplifiedPayments = data.simplifiedPayments,
                         activity = data.activity,
                         isLoading = false,
@@ -220,8 +240,6 @@ class GroupDetailViewModel @AssistedInject constructor(
         // Fetch forex rates, recompute CAD net and CAD-converted simplified payments
         viewModelScope.launch {
             balanceRepository.observeBalances(groupId).collect { rawBalances ->
-                // Calculate net CAD by mathematically mirroring the exact truncation logic
-                // used for individual UI rows below to prevent rounding mismatches.
                 val netCad = rawBalances.sumOf { raw ->
                     if (raw.currency == Group.BASE_CURRENCY) {
                         raw.balanceCents
@@ -251,15 +269,25 @@ class GroupDetailViewModel @AssistedInject constructor(
                         )
                     }
 
-                // 2. Fetch members quickly to satisfy the function parameter
-                val members = memberRepository.getMembers(groupId).first()
+                // 2. Calculate Group Net Balances in CAD (Toggle Off State)
+                val cadGroupNetBals = mutableListOf<MemberBalance>()
+                var myCadNet = 0L
+                for (mb in cadMemberBals) {
+                    myCadNet += mb.balanceCents
+                    cadGroupNetBals.add(MemberBalance(mb.userId, mb.name, -mb.balanceCents, Group.BASE_CURRENCY))
+                }
+                if (myCadNet != 0L) {
+                    cadGroupNetBals.add(MemberBalance(myUserId, "You", myCadNet, Group.BASE_CURRENCY))
+                }
 
                 // 3. Reuse your existing simplifyPayments logic
+                val members = memberRepository.getMembers(groupId).first()
                 val mergedCadPayments = simplifyPayments(cadMemberBals, members, myUserId)
 
                 _uiState.update { it.copy(
                     netBalanceCad = netCad,
                     cadMemberBalances = cadMemberBals,
+                    cadGroupNetBalances = cadGroupNetBals,
                     cadSimplifiedPayments = mergedCadPayments
                 ) }
             }
@@ -329,16 +357,12 @@ class GroupDetailViewModel @AssistedInject constructor(
                 val paidByCurrentUser = expense.paidByUserId == myUserId
 
                 val displayAmountCents = if (paidByCurrentUser) {
-                    // I paid: others owe me (total − my effective share).
-                    // If my split is covered by someone, my effective share is 0.
                     val myEffectiveShare = expense.splits
                         .find { it.userId == myUserId }
                         ?.let { if (it.isCoveredBy != null) 0L else it.amountCents }
                         ?: 0L
                     expense.amountCents - myEffectiveShare
                 } else {
-                    // Someone else paid: I owe my own share (0 if covered)
-                    // plus any other members' shares that I'm covering.
                     val myDirectShare = expense.splits
                         .find { it.userId == myUserId }
                         ?.let { if (it.isCoveredBy != null) 0L else it.amountCents }
@@ -379,23 +403,12 @@ class GroupDetailViewModel @AssistedInject constructor(
 private data class GroupDetailData(
     val group: Group,
     val memberBalances: List<MemberBalance>,
+    val groupNetBalances: List<MemberBalance>,
     val simplifiedPayments: List<SimplifiedPayment>,
     val activity: List<ActivityItem>,
     val memberIds: Set<String>
 )
 
-/**
- * Splitwise-style debt simplification.
- *
- * The backend returns balances from the current user's perspective:
- * positive balanceCents = that member owes the current user
- * negative balanceCents = the current user owes that member
- *
- * The current user never appears as their own row, so we derive their
- * implicit balance per currency as the negated sum of all other rows.
- * Then we run a greedy max-creditor/max-debtor matching loop to produce
- * the minimum number of transactions.
- */
 private fun simplifyPayments(
     memberBalances: List<MemberBalance>,
     members: List<GroupMember>,
@@ -407,29 +420,21 @@ private fun simplifyPayments(
 
     for (currency in currencies) {
         val rows = memberBalances.filter { it.currency == currency }
-
-        // Build absolute balance map for every member including the current user.
-        // Each row says "member X has balanceCents relative to me":
-        //   positive → X owes me  → X is a debtor, I am a creditor by that amount
-        //   negative → I owe X    → I am a debtor, X is a creditor by that amount
         val absoluteBalances = LinkedHashMap<String, Long>()
         var myBalance = 0L
         for (mb in rows) {
-            // From member X's absolute perspective: they owe (−mb.balanceCents) net
             absoluteBalances[mb.userId] = (absoluteBalances[mb.userId] ?: 0L) - mb.balanceCents
-            // Current user's absolute balance accumulates the opposite sign
             myBalance += mb.balanceCents
         }
         if (myBalance != 0L) absoluteBalances[myUserId] = myBalance
 
-        // Split into creditors (net positive = owed money) and debtors (net negative = owe money)
         val creditors = java.util.PriorityQueue<Pair<String, Long>>(compareByDescending { it.second })
         val debtors   = java.util.PriorityQueue<Pair<String, Long>>(compareByDescending { it.second })
 
         for ((uid, bal) in absoluteBalances) {
             when {
                 bal > 0L -> creditors.add(uid to bal)
-                bal < 0L -> debtors.add(uid to -bal) // store as positive
+                bal < 0L -> debtors.add(uid to -bal)
             }
         }
 
