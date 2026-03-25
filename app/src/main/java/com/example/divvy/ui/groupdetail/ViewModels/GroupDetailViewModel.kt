@@ -16,6 +16,7 @@ import com.example.divvy.models.GroupExpense
 import com.example.divvy.models.GroupMember
 import com.example.divvy.models.MemberBalance
 import com.example.divvy.models.ProfileRow
+import com.example.divvy.models.SimplifiedPayment
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
@@ -35,6 +36,7 @@ enum class SettleMode { Fully, Partially }
 data class GroupDetailUiState(
     val group: Group = Group(id = "", name = ""),
     val memberBalances: List<MemberBalance> = emptyList(),
+    val simplifiedPayments: List<SimplifiedPayment> = emptyList(),
     val activity: List<ActivityItem> = emptyList(),
     val isLoading: Boolean = true,
     val showManageSheet: Boolean = false,
@@ -129,30 +131,37 @@ class GroupDetailViewModel @AssistedInject constructor(
                 balanceRepository.observeBalances(groupId),
                 expensesRepository.observeGroupExpenses(groupId)
             ) { group, members, rawBalances, expenses ->
-                // Group raw balances by (userId, currency) to support multi-currency
-                val memberBalances = members.flatMap { member ->
-                    val memberRawBalances = rawBalances.filter { it.userId == member.userId }
-                    if (memberRawBalances.isEmpty()) {
-                        listOf(MemberBalance(userId = member.userId, name = member.name, balanceCents = 0L))
-                    } else {
-                        memberRawBalances.map { raw ->
-                            MemberBalance(
-                                userId = member.userId,
-                                name = member.name,
-                                balanceCents = raw.balanceCents,
-                                currency = raw.currency
-                            )
+                // Build display balances from raw backend data — shows what each person
+                // directly owes/is owed. Simplified payments are computed separately and
+                // used only to determine correct settle direction.
+                val simplifiedPaymentsList = simplifyPayments(rawBalances, members, myUserId)
+
+                val memberBalances = members
+                    .filter { it.userId != myUserId }
+                    .flatMap { member ->
+                        val memberRawBalances = rawBalances.filter { it.userId == member.userId }
+                        if (memberRawBalances.isEmpty()) {
+                            listOf(MemberBalance(userId = member.userId, name = member.name, balanceCents = 0L))
+                        } else {
+                            memberRawBalances.map { raw ->
+                                MemberBalance(
+                                    userId = member.userId,
+                                    name = member.name,
+                                    balanceCents = raw.balanceCents,
+                                    currency = raw.currency
+                                )
+                            }
                         }
                     }
-                }
                 val activity = buildActivity(expenses, members)
                 val memberIds = members.map { it.userId }.toSet() + myUserId
-                GroupDetailData(group, memberBalances, activity, memberIds)
+                GroupDetailData(group, memberBalances, simplifiedPaymentsList, activity, memberIds)
             }.collect { data ->
                 _uiState.update { current ->
                     current.copy(
                         group = data.group,
                         memberBalances = data.memberBalances,
+                        simplifiedPayments = data.simplifiedPayments,
                         activity = data.activity,
                         isLoading = false,
                         isCreator = data.group.createdBy == myUserId,
@@ -180,10 +189,11 @@ class GroupDetailViewModel @AssistedInject constructor(
     }
 
     // --- Settlement (forwarded to delegate) ---
-    fun onMemberClick(userId: String, currency: String) = settlementDelegate.onMemberClick(userId, currency)
+    fun onMemberClick(userId: String, currency: String) =
+        settlementDelegate.onMemberClick(userId, currency, _uiState.value.simplifiedPayments)
     fun onSettleModeSelected(mode: SettleMode, currency: String = "USD") = settlementDelegate.onSettleModeSelected(mode, currency)
     fun onSettleAmountChange(value: String) = settlementDelegate.onSettleAmountChange(value)
-    fun onConfirmSettle(userId: String) = settlementDelegate.onConfirmSettle(userId)
+    fun onConfirmSettle() = settlementDelegate.onConfirmSettle()
 
     // --- Manage actions ---
     fun onShowManageSheet() {
@@ -288,6 +298,85 @@ class GroupDetailViewModel @AssistedInject constructor(
 private data class GroupDetailData(
     val group: Group,
     val memberBalances: List<MemberBalance>,
+    val simplifiedPayments: List<SimplifiedPayment>,
     val activity: List<ActivityItem>,
     val memberIds: Set<String>
 )
+
+/**
+ * Splitwise-style debt simplification.
+ *
+ * The backend returns balances from the current user's perspective:
+ *   positive balanceCents = that member owes the current user
+ *   negative balanceCents = the current user owes that member
+ *
+ * The current user never appears as their own row, so we derive their
+ * implicit balance per currency as the negated sum of all other rows.
+ * Then we run a greedy max-creditor/max-debtor matching loop to produce
+ * the minimum number of transactions.
+ */
+private fun simplifyPayments(
+    memberBalances: List<MemberBalance>,
+    members: List<GroupMember>,
+    myUserId: String
+): List<SimplifiedPayment> {
+    val nameMap = members.associate { it.userId to it.name }
+    val currencies = memberBalances.map { it.currency }.distinct()
+    val result = mutableListOf<SimplifiedPayment>()
+
+    for (currency in currencies) {
+        val rows = memberBalances.filter { it.currency == currency }
+
+        // Build absolute balance map for every member including the current user.
+        // Each row says "member X has balanceCents relative to me":
+        //   positive → X owes me  → X is a debtor, I am a creditor by that amount
+        //   negative → I owe X    → I am a debtor, X is a creditor by that amount
+        val absoluteBalances = LinkedHashMap<String, Long>()
+        var myBalance = 0L
+        for (mb in rows) {
+            // From member X's absolute perspective: they owe (−mb.balanceCents) net
+            absoluteBalances[mb.userId] = (absoluteBalances[mb.userId] ?: 0L) - mb.balanceCents
+            // Current user's absolute balance accumulates the opposite sign
+            myBalance += mb.balanceCents
+        }
+        if (myBalance != 0L) absoluteBalances[myUserId] = myBalance
+
+        // Split into creditors (net positive = owed money) and debtors (net negative = owe money)
+        val creditors = java.util.PriorityQueue<Pair<String, Long>>(compareByDescending { it.second })
+        val debtors   = java.util.PriorityQueue<Pair<String, Long>>(compareByDescending { it.second })
+
+        for ((uid, bal) in absoluteBalances) {
+            when {
+                bal > 0L -> creditors.add(uid to bal)
+                bal < 0L -> debtors.add(uid to -bal) // store as positive
+            }
+        }
+
+        while (creditors.isNotEmpty() && debtors.isNotEmpty()) {
+            val (creditor, credit) = creditors.poll()!!
+            val (debtor,  debt)   = debtors.poll()!!
+
+            val amount = minOf(credit, debt)
+            result.add(
+                SimplifiedPayment(
+                    fromUserId        = debtor,
+                    fromName          = nameMap[debtor] ?: debtor,
+                    toUserId          = creditor,
+                    toName            = nameMap[creditor] ?: creditor,
+                    amountCents       = amount,
+                    currency          = currency,
+                    fromIsCurrentUser = debtor == myUserId,
+                    toIsCurrentUser   = creditor == myUserId
+                )
+            )
+
+            val remaining = credit - debt
+            when {
+                remaining > 0L -> creditors.add(creditor to remaining)
+                remaining < 0L -> debtors.add(debtor to -remaining)
+            }
+        }
+    }
+
+    return result.sortedWith(compareBy<SimplifiedPayment> { it.currency }.thenByDescending { it.amountCents })
+}
