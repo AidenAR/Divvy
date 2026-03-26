@@ -12,19 +12,53 @@ Deno.serve(async (req) => {
   const paidBy       = record.paid_by_user_id as string;
   const merchant     = (record.merchant as string) ?? "an expense";
   const groupId      = record.group_id as string;
+  const amountCents  = record.amount_cents as number;
+  const currency     = (record.currency as string) ?? "USD";
   const isSettlement = record.split_method === "SETTLEMENT";
 
+  // Look up payer name, group name, and members in parallel
+  const [payerResult, groupResult, membersResult] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("first_name, last_name")
+      .eq("id", paidBy)
+      .single(),
+    supabase
+      .from("groups")
+      .select("name")
+      .eq("id", groupId)
+      .single(),
+    supabase
+      .from("group_members")
+      .select("user_id")
+      .eq("group_id", groupId)
+      .neq("user_id", paidBy),
+  ]);
+
+  if (!membersResult.data?.length) return new Response("no recipients", { status: 200 });
+
+  const payerName  = payerResult.data
+    ? `${payerResult.data.first_name ?? ""} ${payerResult.data.last_name ?? ""}`.trim()
+    : "Someone";
+  const groupName  = groupResult.data?.name ?? "your group";
+
+  // Format amount e.g. $12.50 or ₹1,000.00
+  const formatted = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: 2,
+  }).format(amountCents / 100);
+
+  const title = isSettlement
+    ? `${payerName} settled up`
+    : `${payerName} added an expense`;
+
+  const body = isSettlement
+    ? `${payerName} recorded a ${formatted} settlement in ${groupName}.`
+    : `${payerName} paid ${formatted} for "${merchant}" in ${groupName}.`;
+
   // Get FCM tokens for all group members except the payer
-  const { data: members } = await supabase
-    .from("group_members")
-    .select("user_id")
-    .eq("group_id", groupId)
-    .neq("user_id", paidBy);
-
-  if (!members?.length) return new Response("no recipients", { status: 200 });
-
-  const userIds = members.map((m) => m.user_id as string);
-
+  const userIds = membersResult.data.map((m) => m.user_id as string);
   const { data: tokens } = await supabase
     .from("push_tokens")
     .select("token")
@@ -32,7 +66,7 @@ Deno.serve(async (req) => {
 
   if (!tokens?.length) return new Response("no tokens", { status: 200 });
 
-  // Get an OAuth2 access token from the service account
+  // Get OAuth2 access token from service account
   const serviceAccount = JSON.parse(Deno.env.get("FCM_SERVICE_ACCOUNT_KEY")!);
   const auth = new GoogleAuth({
     credentials: serviceAccount,
@@ -41,12 +75,6 @@ Deno.serve(async (req) => {
   const accessToken = await auth.getAccessToken();
   const projectId = serviceAccount.project_id;
 
-  const title = isSettlement ? "Settlement recorded" : `New expense: ${merchant}`;
-  const body  = isSettlement
-    ? "A settlement was recorded in your group."
-    : `Someone added "${merchant}" — check your share.`;
-
-  // Send to each token
   await Promise.all(tokens.map(({ token }) =>
     fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
       method: "POST",
@@ -58,7 +86,11 @@ Deno.serve(async (req) => {
         message: {
           token,
           notification: { title, body },
-          data: { type: isSettlement ? "settlement" : "expense" },
+          data: {
+            type:     isSettlement ? "settlement" : "expense",
+            groupId,
+            merchant,
+          },
         },
       }),
     })
