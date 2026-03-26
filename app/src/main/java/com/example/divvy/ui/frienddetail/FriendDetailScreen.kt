@@ -299,17 +299,10 @@ private fun FriendGroupBalanceCard(groupBalances: FriendGroupBalances) {
             val amountColor = if (isPositive) PositiveGreen else NegativeRed
             val displayAmount = formatAmount(kotlin.math.abs(balance.balanceCents), balance.currency)
 
-            if (index > 0) {
-                HorizontalDivider(
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
-                )
-            }
-
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
