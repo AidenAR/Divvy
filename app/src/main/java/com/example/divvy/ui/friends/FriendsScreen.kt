@@ -1,6 +1,7 @@
 package com.example.divvy.ui.friends
 
 import android.Manifest
+import android.R.attr.onClick
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -34,6 +35,7 @@ import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.PersonAdd
@@ -65,6 +67,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -75,6 +78,7 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.divvy.components.GroupIcon
 import com.example.divvy.models.FriendBalance
+import com.example.divvy.models.Group
 import com.example.divvy.models.formatAmount
 import com.example.divvy.ui.theme.Amber
 import com.example.divvy.ui.theme.AvatarColors
@@ -186,40 +190,34 @@ fun FriendsScreen(
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { innerPadding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            // Search bar
-            OutlinedTextField(
-                value = uiState.searchQuery,
-                onValueChange = { viewModel.onSearchChange(it) },
-                placeholder = { Text("Search friends...") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                shape = RoundedCornerShape(12.dp),
-                singleLine = true
-            )
-
-            // Action bar when items selected
-            if (uiState.selectedKeys.isNotEmpty()) {
-                SelectionActionBar(
-                    count = uiState.selectedKeys.size,
-                    onAddToGroup = { viewModel.onShowAddToGroupSheet() },
-                    onCreateGroup = { viewModel.onShowCreateGroupSheet() },
-                    onClear = { viewModel.onClearSelection() }
+            Column(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                // Search bar
+                OutlinedTextField(
+                    value = uiState.searchQuery,
+                    onValueChange = { viewModel.onSearchChange(it) },
+                    placeholder = { Text("Search friends...") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true
                 )
-            }
 
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(modifier = Modifier.weight(1f)) {
                 // Friends with outstanding balances
                 if (friendsWithBalances.isNotEmpty()) {
                     items(friendsWithBalances, key = { it.selectionKey }) { friend ->
                         val index = uiState.friendBalances.indexOfFirst { it.userId == friend.userId }
                         FriendBalanceCard(
                             friend = friend,
+                            cadBalance = uiState.friendCadBalances[friend.userId],
                             avatarColor = AvatarColors[abs(index) % AvatarColors.size],
                             isSelected = friend.selectionKey in uiState.selectedKeys,
                             onClick = {
@@ -250,6 +248,7 @@ fun FriendsScreen(
                             val index = uiState.friendBalances.indexOfFirst { it.userId == friend.userId }
                             FriendBalanceCard(
                                 friend = friend,
+                                cadBalance = uiState.friendCadBalances[friend.userId],
                                 avatarColor = AvatarColors[abs(index) % AvatarColors.size],
                                 isSelected = friend.selectionKey in uiState.selectedKeys,
                                 onClick = {
@@ -307,6 +306,20 @@ fun FriendsScreen(
                         }
                     }
                 }
+            }
+            }
+
+            // Floating action bar when items selected
+            if (uiState.selectedKeys.isNotEmpty()) {
+                SelectionActionBar(
+                    count = uiState.selectedKeys.size,
+                    onAddToGroup = { viewModel.onShowAddToGroupSheet() },
+                    onCreateGroup = { viewModel.onShowCreateGroupSheet() },
+                    onClear = { viewModel.onClearSelection() },
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(horizontal = 16.dp, vertical = 24.dp)
+                )
             }
         }
     }
@@ -395,49 +408,47 @@ private fun SelectionActionBar(
     count: Int,
     onAddToGroup: () -> Unit,
     onCreateGroup: () -> Unit,
-    onClear: () -> Unit
+    onClear: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    Surface(
-        tonalElevation = 2.dp,
-        modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceVariant
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .shadow(8.dp, RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Row(
+        Icon(
+            imageVector = Icons.Rounded.Close,
+            contentDescription = "Clear selection",
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .size(24.dp)
+                .clickable { onClear() }
+        )
+        Text(
+            text = "$count selected",
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.weight(1f))
+        OutlinedButton(
+            onClick = onAddToGroup,
+            shape = RoundedCornerShape(8.dp),
+            modifier = Modifier.height(36.dp)
         ) {
-            Text(
-                text = "$count selected",
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.clickable { onClear() }
-            )
-            Spacer(Modifier.width(12.dp))
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutlinedButton(
-                    onClick = onAddToGroup,
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.height(36.dp)
-                ) {
-                    Text("Add to Group", fontSize = 12.sp, maxLines = 1)
-                }
-                Button(
-                    onClick = onCreateGroup,
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.height(36.dp)
-                ) {
-                    Text("New Group", fontSize = 12.sp, maxLines = 1)
-                }
-            }
+            Text("Add to Group", fontSize = 12.sp, maxLines = 1)
+        }
+        Button(
+            onClick = onCreateGroup,
+            shape = RoundedCornerShape(8.dp),
+            modifier = Modifier.height(36.dp)
+        ) {
+            Text("New Group", fontSize = 12.sp, maxLines = 1)
         }
     }
 }
@@ -446,6 +457,7 @@ private fun SelectionActionBar(
 @Composable
 private fun FriendBalanceCard(
     friend: FriendBalance,
+    cadBalance: Long?,
     avatarColor: Color,
     isSelected: Boolean,
     onClick: () -> Unit,
@@ -454,26 +466,20 @@ private fun FriendBalanceCard(
     val surfaceColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer
         else MaterialTheme.colorScheme.surface
 
-    // Determine status for badge
-    val nonZeroNets = friend.netBalancesByCurrency.filter { it.value != 0L }
-    val hasPositive = nonZeroNets.any { it.value > 0 }
-    val hasNegative = nonZeroNets.any { it.value < 0 }
+    // Use CAD balance for badge and display
+    val effectiveCadBalance = cadBalance ?: 0L
     val badgeIcon = when {
         friend.isSettledUp -> Icons.Rounded.CheckCircle
-        hasPositive && hasNegative -> Icons.Rounded.SwapHoriz
-        hasPositive -> Icons.Rounded.ArrowDownward
-        else -> Icons.Rounded.ArrowUpward
+        effectiveCadBalance > 0 -> Icons.Rounded.ArrowDownward
+        effectiveCadBalance < 0 -> Icons.Rounded.ArrowUpward
+        else -> Icons.Rounded.CheckCircle
     }
     val badgeColor = when {
         friend.isSettledUp -> MaterialTheme.colorScheme.onSurfaceVariant
-        hasPositive && hasNegative -> Amber
-        hasPositive -> PositiveGreen
-        else -> NegativeRed
+        effectiveCadBalance > 0 -> PositiveGreen
+        effectiveCadBalance < 0 -> NegativeRed
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
-
-    // Find the dominant balance (max abs value) for right-side display
-    val dominantEntry = nonZeroNets.maxByOrNull { abs(it.value) }
-    val hasMultipleCurrencies = nonZeroNets.size > 1
 
     Column(
         modifier = Modifier
@@ -557,26 +563,24 @@ private fun FriendBalanceCard(
 
             Spacer(Modifier.width(8.dp))
 
-            // Right side: amount
-            if (friend.isSettledUp) {
+            // Right side: CAD-converted overall amount
+            if (friend.isSettledUp || effectiveCadBalance == 0L) {
                 Text(
                     text = "settled up",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-            } else if (dominantEntry != null) {
+            } else {
                 Column(horizontalAlignment = Alignment.End) {
-                    val isPositive = dominantEntry.value > 0
-                    val amountText = formatAmount(dominantEntry.value, dominantEntry.key) +
-                        if (hasMultipleCurrencies) "*" else ""
+                    val isPositive = effectiveCadBalance > 0
                     Text(
-                        text = amountText,
+                        text = formatAmount(effectiveCadBalance, Group.BASE_CURRENCY),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = if (isPositive) PositiveGreen else NegativeRed
                     )
                     Text(
-                        text = if (isPositive) "owes you" else "you owe",
+                        text = if (isPositive) "you get back" else "you owe",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -611,7 +615,7 @@ private fun FriendBalanceCard(
                             modifier = Modifier.weight(1f, fill = false)
                         )
                         Text(
-                            text = " · ${if (isPositive) "owes you" else "you owe"}",
+                            text = " · ${if (isPositive) "you get back" else "you owe"}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                             maxLines = 1

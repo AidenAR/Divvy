@@ -5,11 +5,14 @@ import androidx.lifecycle.viewModelScope
 import com.example.divvy.backend.AuthRepository
 import com.example.divvy.backend.DataResult
 import com.example.divvy.backend.ExpensesRepository
+import com.example.divvy.backend.ForexRepository
 import com.example.divvy.backend.FriendsRepository
 import com.example.divvy.backend.GroupRepository
 import com.example.divvy.backend.MemberRepository
 import com.example.divvy.components.GroupIcon
 import com.example.divvy.models.FriendActivityItem
+import com.example.divvy.models.FriendGroupBalances
+import com.example.divvy.models.Group
 import com.example.divvy.models.GroupBalance
 import com.example.divvy.models.GroupExpense
 import dagger.assisted.Assisted
@@ -29,10 +32,17 @@ import java.util.Locale
 data class FriendDetailUiState(
     val friendName: String = "",
     val balances: List<GroupBalance> = emptyList(),
+    val groupedBalances: List<FriendGroupBalances> = emptyList(),
+    val cadGroupedBalances: List<FriendGroupBalances> = emptyList(),
+    val overallBalanceCad: Long? = null,
+    val convertToCad: Boolean = false,
     val activity: List<FriendActivityItem> = emptyList(),
     val isLoading: Boolean = true,
     val navigateToSplitWithGroupId: String? = null
-)
+) {
+    val displayedGroupedBalances: List<FriendGroupBalances>
+        get() = if (convertToCad) cadGroupedBalances else groupedBalances
+}
 
 @HiltViewModel(assistedFactory = FriendDetailViewModel.Factory::class)
 class FriendDetailViewModel @AssistedInject constructor(
@@ -41,7 +51,8 @@ class FriendDetailViewModel @AssistedInject constructor(
     private val friendsRepository: FriendsRepository,
     private val expensesRepository: ExpensesRepository,
     private val groupRepository: GroupRepository,
-    private val memberRepository: MemberRepository
+    private val memberRepository: MemberRepository,
+    private val forexRepository: ForexRepository
 ) : ViewModel() {
 
     @AssistedFactory
@@ -56,9 +67,17 @@ class FriendDetailViewModel @AssistedInject constructor(
     private var friendFirstName: String = ""
     private var sharedGroupIds: List<String> = emptyList()
 
+    private val fallbackRates = mapOf(
+        "AUD" to 1.0419, "BRL" to 3.7968, "CHF" to 0.57289, "CNY" to 5.0059, "CZK" to 15.2951,
+        "DKK" to 4.6765, "EUR" to 0.6259, "GBP" to 0.54177, "HKD" to 5.673, "HUF" to 243.59,
+        "IDR" to 12231.0, "ILS" to 2.2649, "INR" to 68.16, "ISK" to 89.75, "JPY" to 115.33,
+        "KRW" to 1086.52, "MXN" to 12.8898, "MYR" to 2.8768, "NOK" to 7.0636, "NZD" to 1.2469,
+        "PHP" to 43.579, "PLN" to 2.6737, "RON" to 3.1888, "SEK" to 6.7419, "SGD" to 0.92815,
+        "THB" to 23.645, "TRY" to 32.183, "USD" to 0.72554, "ZAR" to 12.2715, "CAD" to 1.0
+    )
+
     init {
         viewModelScope.launch {
-            // Fetch friend balances and group info in parallel
             val friendBalances = friendsRepository.getFriendsBalances()
             val friend = friendBalances.find { it.userId == friendUserId }
 
@@ -67,13 +86,56 @@ class FriendDetailViewModel @AssistedInject constructor(
             val balances = friend?.groupBalances ?: emptyList()
             sharedGroupIds = balances.map { it.groupId }.distinct()
 
-            // Build group info map from friend balances + all groups for fallback
             val groupInfoFromBalances = balances.associateBy { it.groupId }
+
+            val nonZeroBalances = balances.filter { it.balanceCents != 0L }
+
+            // Group balances by groupId
+            val grouped = nonZeroBalances.groupBy { it.groupId }.map { (groupId, groupBalances) ->
+                val first = groupBalances.first()
+                FriendGroupBalances(
+                    groupId = groupId,
+                    groupName = first.groupName,
+                    groupIcon = first.groupIcon,
+                    balances = groupBalances
+                )
+            }
+
+            // CAD-converted grouped balances
+            val cadGrouped = grouped.map { group ->
+                var totalCad = 0L
+                for (b in group.balances) {
+                    totalCad += convertToCad(b.balanceCents, b.currency)
+                }
+                FriendGroupBalances(
+                    groupId = group.groupId,
+                    groupName = group.groupName,
+                    groupIcon = group.groupIcon,
+                    balances = listOf(
+                        GroupBalance(
+                            groupId = group.groupId,
+                            groupName = group.groupName,
+                            groupIcon = group.groupIcon,
+                            balanceCents = totalCad,
+                            currency = Group.BASE_CURRENCY
+                        )
+                    )
+                )
+            }
+
+            // Overall CAD balance
+            var overallCad = 0L
+            for (b in nonZeroBalances) {
+                overallCad += convertToCad(b.balanceCents, b.currency)
+            }
 
             _uiState.update {
                 it.copy(
                     friendName = friendName,
-                    balances = balances.filter { gb -> gb.balanceCents != 0L }
+                    balances = nonZeroBalances,
+                    groupedBalances = grouped,
+                    cadGroupedBalances = cadGrouped,
+                    overallBalanceCad = overallCad
                 )
             }
 
@@ -88,9 +150,12 @@ class FriendDetailViewModel @AssistedInject constructor(
         }
     }
 
+    fun onToggleConvertToCad() {
+        _uiState.update { it.copy(convertToCad = !it.convertToCad) }
+    }
+
     fun onAddExpense() {
         viewModelScope.launch {
-            // Collect all group IDs to check: from balances + all user groups
             val allGroupIds = sharedGroupIds.toMutableSet()
             try {
                 groupRepository.refreshGroups()
@@ -100,7 +165,6 @@ class FriendDetailViewModel @AssistedInject constructor(
                 }
             } catch (_: Exception) { }
 
-            // Look for an existing 1-on-1 group (exactly 2 members: me + friend)
             var existing1on1GroupId: String? = null
             for (groupId in allGroupIds) {
                 try {
@@ -116,7 +180,6 @@ class FriendDetailViewModel @AssistedInject constructor(
             if (existing1on1GroupId != null) {
                 _uiState.update { it.copy(navigateToSplitWithGroupId = existing1on1GroupId) }
             } else {
-                // Create a new 1-on-1 group
                 try {
                     val groupName = "$friendFirstName and You"
                     val group = groupRepository.createGroup(groupName, GroupIcon.Group)
@@ -132,33 +195,42 @@ class FriendDetailViewModel @AssistedInject constructor(
         _uiState.update { it.copy(navigateToSplitWithGroupId = null) }
     }
 
+    private suspend fun convertToCad(amountCents: Long, currency: String): Long {
+        if (currency == Group.BASE_CURRENCY) return amountCents
+        val rate = forexRepository.getRate(currency, Group.BASE_CURRENCY)
+            ?: getFallbackRate(currency, Group.BASE_CURRENCY)
+        return (amountCents * rate).toLong()
+    }
+
+    private fun getFallbackRate(from: String, to: String): Double {
+        if (from == to) return 1.0
+        val fromRate = fallbackRates[from] ?: 1.0
+        val toRate = fallbackRates[to] ?: 1.0
+        return toRate / fromRate
+    }
+
     private suspend fun buildFriendActivity(
         allExpenses: List<GroupExpense>,
         groupInfoFromBalances: Map<String, GroupBalance>
     ): List<FriendActivityItem> {
-        // Build a group lookup map, using balances first, then falling back to GroupRepository
         val groupInfoMap = groupInfoFromBalances.toMutableMap()
         val missingGroupIds = mutableSetOf<String>()
 
-        // Filter expenses where both users have splits
         val relevantExpenses = allExpenses.filter { expense ->
             val hasMe = expense.splits.any { it.userId == myUserId } || expense.paidByUserId == myUserId
             val hasFriend = expense.splits.any { it.userId == friendUserId } || expense.paidByUserId == friendUserId
             hasMe && hasFriend
         }
 
-        // Collect missing group IDs
         relevantExpenses.forEach { expense ->
             if (expense.groupId !in groupInfoMap) {
                 missingGroupIds.add(expense.groupId)
             }
         }
 
-        // Fetch missing group info
         if (missingGroupIds.isNotEmpty()) {
             try {
                 groupRepository.refreshGroups()
-                // Collect once from the flow to get current groups
                 val groups = groupRepository.listGroups().first { it is DataResult.Success }
                 if (groups is DataResult.Success) {
                     groups.data.forEach { group ->
@@ -188,22 +260,18 @@ class FriendDetailViewModel @AssistedInject constructor(
         val paidByMe = expense.paidByUserId == myUserId
         val paidByFriend = expense.paidByUserId == friendUserId
 
-        // Only show expenses where one of the two users is the payer
         if (!paidByMe && !paidByFriend) return null
 
         val displayAmountCents = if (paidByMe) {
-            // I paid: show how much the friend owes me (their split)
             expense.splits.find { it.userId == friendUserId }
                 ?.let { if (it.isCoveredBy != null) 0L else it.amountCents }
                 ?: 0L
         } else {
-            // Friend paid: show how much I owe them (my split)
             expense.splits.find { it.userId == myUserId }
                 ?.let { if (it.isCoveredBy != null) 0L else it.amountCents }
                 ?: 0L
         }
 
-        // Skip zero-impact expenses
         if (displayAmountCents == 0L) return null
 
         val groupInfo = groupInfoMap[expense.groupId]

@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.divvy.backend.AuthRepository
 import com.example.divvy.backend.ContactsRepository
+import com.example.divvy.backend.ForexRepository
 import com.example.divvy.backend.FriendsRepository
 import com.example.divvy.backend.GroupRepository
 import com.example.divvy.backend.MemberRepository
@@ -65,7 +66,9 @@ data class FriendsUiState(
     val contactsOnDivvy: List<ContactOnDivvy> = emptyList(),
     val isLoadingProfiles: Boolean = false,
     // All user groups (for computing available groups)
-    val allGroups: List<Group> = emptyList()
+    val allGroups: List<Group> = emptyList(),
+    // Per-friend CAD-converted net balance
+    val friendCadBalances: Map<String, Long> = emptyMap()
 )
 
 @HiltViewModel
@@ -74,8 +77,18 @@ class FriendsViewModel @Inject constructor(
     private val contactsRepository: ContactsRepository,
     private val groupRepository: GroupRepository,
     private val memberRepository: MemberRepository,
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val forexRepository: ForexRepository
 ) : ViewModel() {
+
+    private val fallbackRates = mapOf(
+        "AUD" to 1.0419, "BRL" to 3.7968, "CHF" to 0.57289, "CNY" to 5.0059, "CZK" to 15.2951,
+        "DKK" to 4.6765, "EUR" to 0.6259, "GBP" to 0.54177, "HKD" to 5.673, "HUF" to 243.59,
+        "IDR" to 12231.0, "ILS" to 2.2649, "INR" to 68.16, "ISK" to 89.75, "JPY" to 115.33,
+        "KRW" to 1086.52, "MXN" to 12.8898, "MYR" to 2.8768, "NOK" to 7.0636, "NZD" to 1.2469,
+        "PHP" to 43.579, "PLN" to 2.6737, "RON" to 3.1888, "SEK" to 6.7419, "SGD" to 0.92815,
+        "THB" to 23.645, "TRY" to 32.183, "USD" to 0.72554, "ZAR" to 12.2715, "CAD" to 1.0
+    )
 
     private val _uiState = MutableStateFlow(FriendsUiState(isLoading = true))
     val uiState: StateFlow<FriendsUiState> = _uiState.asStateFlow()
@@ -113,7 +126,17 @@ class FriendsViewModel @Inject constructor(
                         }.distinctBy { it.id }
                     )
                 }
-                _uiState.update { it.copy(friendBalances = sortedBalances, friends = friends, isLoading = false) }
+                // Compute per-friend CAD totals
+                val cadBalances = mutableMapOf<String, Long>()
+                for (fb in sortedBalances) {
+                    var totalCad = 0L
+                    for (gb in fb.groupBalances) {
+                        totalCad += convertToCad(gb.balanceCents, gb.currency)
+                    }
+                    cadBalances[fb.userId] = totalCad
+                }
+
+                _uiState.update { it.copy(friendBalances = sortedBalances, friends = friends, friendCadBalances = cadBalances, isLoading = false) }
                 if (_uiState.value.hasContactsPermission) {
                     loadDeviceContacts()
                     mergeContactsOnDivvy()
@@ -530,6 +553,20 @@ class FriendsViewModel @Inject constructor(
         return _uiState.value.deviceContacts.filter {
             it.name.lowercase().contains(query) || it.contactValue.lowercase().contains(query)
         }
+    }
+
+    private suspend fun convertToCad(amountCents: Long, currency: String): Long {
+        if (currency == Group.BASE_CURRENCY) return amountCents
+        val rate = forexRepository.getRate(currency, Group.BASE_CURRENCY)
+            ?: getFallbackRate(currency, Group.BASE_CURRENCY)
+        return (amountCents * rate).toLong()
+    }
+
+    private fun getFallbackRate(from: String, to: String): Double {
+        if (from == to) return 1.0
+        val fromRate = fallbackRates[from] ?: 1.0
+        val toRate = fallbackRates[to] ?: 1.0
+        return toRate / fromRate
     }
 
     private fun String.normalizePhone(): String = replace(Regex("[^\\d]"), "")
