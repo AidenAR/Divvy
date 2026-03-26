@@ -76,21 +76,13 @@ data class SplitExpenseUiState(
     val currencySymbol: String
         get() = SupportedCurrency.fromCode(currency).symbol
 
-    val perPersonAmount: String
+    val perPersonAmounts: Map<String, Long>
         get() {
-            val total = amount.toDoubleOrNull() ?: return ""
-            val count = members.size
-            if (count == 0) return ""
-            return String.format("%.2f", total / count)
-        }
-
-    val formattedPerPerson: String
-        get() {
-            val total = amount.toDoubleOrNull() ?: return ""
-            val count = members.size
-            if (count == 0) return ""
-            val perPerson = (total * 100 / count).toLong()
-            return formatAmount(perPerson, currency)
+            val total = amount.toDoubleOrNull() ?: return emptyMap()
+            if (members.isEmpty()) return emptyMap()
+            val amountCents = (total * 100).toLong()
+            return splitEqually(amountCents, members.map { it.id })
+                .associate { it.userId to it.amountCents }
         }
 
     val canCreate: Boolean
