@@ -1,6 +1,5 @@
 package com.example.divvy.ui.navigation
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -19,6 +18,7 @@ import androidx.compose.material.icons.rounded.Group
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.People
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -30,14 +30,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
-import com.example.divvy.R
 
 @Composable
 fun BottomNavigationBar(navController: NavController) {
@@ -115,7 +113,7 @@ fun BottomNavigationBar(navController: NavController) {
         Box(
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .offset(y = (-20).dp)
+                .offset(y = (-4).dp)
                 .size(56.dp)
                 .shadow(4.dp, CircleShape)
                 .clip(CircleShape)
@@ -123,10 +121,11 @@ fun BottomNavigationBar(navController: NavController) {
                 .clickable { navController.navigate(AppDestination.ScanReceipt) },
             contentAlignment = Alignment.Center
         ) {
-            Image(
-                painter = painterResource(id = R.drawable.ic_divvy_dark),
+            Icon(
+                imageVector = Icons.Rounded.CameraAlt,
                 contentDescription = "Scan",
-                modifier = Modifier.size(32.dp)
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(28.dp)
             )
         }
     }

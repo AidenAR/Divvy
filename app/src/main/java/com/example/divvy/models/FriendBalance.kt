@@ -8,6 +8,13 @@ data class GroupBalance(
     val currency: String
 )
 
+data class FriendGroupBalances(
+    val groupId: String,
+    val groupName: String,
+    val groupIcon: String?,
+    val balances: List<GroupBalance>
+)
+
 data class FriendBalance(
     val userId: String,
     val firstName: String?,

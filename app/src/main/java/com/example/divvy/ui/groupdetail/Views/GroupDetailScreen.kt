@@ -729,7 +729,7 @@ private fun MemberBalanceGroupCard(
             } else {
                 when {
                     isSettled -> "settled up"
-                    isPositive -> "owes you"
+                    isPositive -> "you get back"
                     else -> "you owe"
                 }
             }
@@ -743,18 +743,11 @@ private fun MemberBalanceGroupCard(
             val isExpanded = expandedCurrency == memberBalance.currency
 
             Column {
-                if (index > 0) {
-                    HorizontalDivider(
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
-                    )
-                }
-
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable(enabled = !showNetBalance) { onCurrencyClick(memberBalance.currency) }
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -930,11 +923,6 @@ private fun SimplifiedPaymentCard(
     val amount = formatAmount(payment.amountCents, payment.currency)
     val fromLabel = if (payment.fromIsCurrentUser) "You" else payment.fromName
     val toLabel   = if (payment.toIsCurrentUser)   "You" else payment.toName
-    val bgColor = when {
-        payment.fromIsCurrentUser -> NegativeRedLight
-        payment.toIsCurrentUser   -> PositiveGreenLight
-        else                      -> MaterialTheme.colorScheme.surface
-    }
     val accentColor = when {
         payment.fromIsCurrentUser -> NegativeRed
         payment.toIsCurrentUser   -> PositiveGreen
@@ -945,7 +933,7 @@ private fun SimplifiedPaymentCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(bgColor)
+            .background(MaterialTheme.colorScheme.surface)
             .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
             .clickable(onClick = onCardClick)
     ) {
@@ -955,38 +943,28 @@ private fun SimplifiedPaymentCard(
                 .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = fromLabel,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Icon(
-                        imageVector = Icons.Default.ArrowForward,
-                        contentDescription = null,
-                        tint = accentColor,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = toLabel,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                }
-                Spacer(modifier = Modifier.height(2.dp))
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
-                    text = when {
-                        payment.fromIsCurrentUser -> "You owe"
-                        payment.toIsCurrentUser   -> "You get back"
-                        else                      -> "Transfer"
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = accentColor
+                    text = fromLabel,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = if (payment.fromIsCurrentUser) "pay" else "pays",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = toLabel,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onBackground
                 )
             }
             Text(
@@ -1081,9 +1059,8 @@ private fun SimplifiedPaymentCard(
 @Composable
 private fun ActivityCard(item: ActivityItem) {
     val amount = formatAmount(item.amountCents, item.currency)
-    val badgeLabel = if (item.paidByCurrentUser) "You paid" else "You owe"
-    val badgeBg = if (item.paidByCurrentUser) PositiveGreenLight else NegativeRedLight
-    val badgeTextColor = if (item.paidByCurrentUser) PositiveGreen else NegativeRed
+    val accentColor = if (item.paidByCurrentUser) PositiveGreen else NegativeRed
+    val label = if (item.paidByCurrentUser) "you get back" else "you owe"
 
     Row(
         modifier = Modifier
@@ -1112,21 +1089,14 @@ private fun ActivityCard(item: ActivityItem) {
             Text(
                 text = amount,
                 style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onBackground
+                color = accentColor
             )
             Spacer(modifier = Modifier.height(4.dp))
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(badgeBg)
-                    .padding(horizontal = 8.dp, vertical = 3.dp)
-            ) {
-                Text(
-                    text = badgeLabel,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = badgeTextColor,
-                )
-            }
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
