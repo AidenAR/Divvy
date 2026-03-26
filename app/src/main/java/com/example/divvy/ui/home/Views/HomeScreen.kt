@@ -79,6 +79,7 @@ fun HomeScreen(
     onAddExpense: () -> Unit,
     onLedgerClick: () -> Unit,
     onImportStatement: () -> Unit = {},
+    onNotificationsClick: () -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -110,7 +111,7 @@ fun HomeScreen(
                             contentDescription = "Divvy",
                             modifier = Modifier.size(28.dp)
                         )
-                        IconButton(onClick = { /* Notification placeholder */ }) {
+                        IconButton(onClick = onNotificationsClick) {
                             Icon(
                                 imageVector = Icons.Outlined.Notifications,
                                 contentDescription = "Notifications",
@@ -129,13 +130,13 @@ fun HomeScreen(
                             color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
                         )
                         Spacer(modifier = Modifier.height(8.dp))
-                        
+
                         val netBalance = uiState.totalOwedCents - uiState.totalOwingCents
                         val isOwed = netBalance >= 0
                         val label = if (isOwed) "You are owed" else "You owe"
                         val dollars = kotlin.math.abs(netBalance) / 100.0
                         val formattedNumber = String.format("%,.2f", dollars)
-                        
+
                         Text(
                             text = buildAnnotatedString {
                                 append(formattedNumber)
@@ -236,7 +237,7 @@ fun HomeScreen(
                         Spacer(modifier = Modifier.height(12.dp))
                     }
                 }
-                
+
                 item { Spacer(modifier = Modifier.height(24.dp)) }
             }
         }

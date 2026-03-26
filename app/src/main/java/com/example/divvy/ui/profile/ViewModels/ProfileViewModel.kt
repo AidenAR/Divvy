@@ -1,5 +1,6 @@
 package com.example.divvy.ui.profile.ViewModels
 
+import com.example.divvy.notifications.ExpenseNotificationService
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.divvy.FeatureFlags
@@ -32,7 +33,8 @@ data class ProfileUiState(
 
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
-    private val profilesRepository: ProfilesRepository
+    private val profilesRepository: ProfilesRepository,
+    private val expenseNotificationService: ExpenseNotificationService
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(ProfileUiState(isLoading = true))
     val uiState: StateFlow<ProfileUiState> = _uiState.asStateFlow()
@@ -105,6 +107,7 @@ class ProfileViewModel @Inject constructor(
             try {
                 SupabaseClientProvider.client.auth.signOut()
                 SentryUserSync.detach()
+                expenseNotificationService.stop()
                 _uiState.update { it.copy(isLoading = false, profile = null, email = null, phone = null, phoneVerified = null) }
                 onComplete()
             } catch (e: Exception) {
