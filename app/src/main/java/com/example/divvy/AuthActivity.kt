@@ -5,14 +5,20 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.lifecycle.lifecycleScope
+import com.example.divvy.backend.PushTokenRepository
 import com.example.divvy.backend.SupabaseClientProvider
 import com.example.divvy.ui.auth.Views.AuthNav
 import com.example.divvy.ui.theme.DivvyTheme
 import dagger.hilt.android.AndroidEntryPoint
 import io.github.jan.supabase.gotrue.handleDeeplinks
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class AuthActivity : ComponentActivity() {
+
+    @Inject lateinit var pushTokenRepository: PushTokenRepository
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (FeatureFlags.AUTH_BYPASS) {
@@ -28,6 +34,7 @@ class AuthActivity : ComponentActivity() {
             DivvyTheme {
                 AuthNav(
                     onAuthenticated = {
+                        lifecycleScope.launch { pushTokenRepository.syncToken() }
                         startActivity(Intent(this, MainActivity::class.java))
                         finish()
                     }
