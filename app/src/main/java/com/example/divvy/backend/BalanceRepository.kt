@@ -13,6 +13,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -34,12 +35,21 @@ class SupabaseBalanceRepository @Inject constructor(
     private val supabaseClient: SupabaseClient
 ) : BalanceRepository {
 
+    companion object {
+        private const val CACHE_TTL_MS = 30_000L
+    }
+
     private val _balances = MutableStateFlow<Map<String, List<MemberBalance>>>(emptyMap())
+    private val _lastRefreshMs = ConcurrentHashMap<String, Long>()
 
     override fun observeBalances(groupId: String): Flow<List<MemberBalance>> =
         _balances.map { it[groupId] ?: emptyList() }
 
     override suspend fun refreshBalances(groupId: String) {
+        val now = System.currentTimeMillis()
+        val lastRefresh = _lastRefreshMs[groupId] ?: 0L
+        if (now - lastRefresh < CACHE_TTL_MS && _balances.value.containsKey(groupId)) return
+
         val params = buildJsonObject { put("p_group_id", groupId) }
         val balanceRows = try {
             supabaseClient.postgrest
@@ -66,9 +76,11 @@ class SupabaseBalanceRepository @Inject constructor(
             )
         }
         _balances.update { it + (groupId to balances) }
+        _lastRefreshMs[groupId] = now
     }
 
     override fun clearCache(groupId: String) {
         _balances.update { it - groupId }
+        _lastRefreshMs.remove(groupId)
     }
 }
