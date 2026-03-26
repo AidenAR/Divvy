@@ -9,12 +9,14 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.example.divvy.notifications.RequestNotificationPermission
 import com.example.divvy.ui.navigation.AppDestination
 import com.example.divvy.ui.navigation.AppNavHost
 import com.example.divvy.ui.navigation.BottomNavigationBar
 
 @Composable
 fun MainScreen() {
+    RequestNotificationPermission()
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination

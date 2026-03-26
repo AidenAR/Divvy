@@ -19,6 +19,7 @@ import com.example.divvy.ui.analytics.Views.AnalyticsScreen
 import com.example.divvy.ui.groupdetail.Views.GroupDetailScreen
 import com.example.divvy.ui.ledger.Views.LedgerScreen
 import com.example.divvy.ui.profile.Views.ProfileScreen
+import com.example.divvy.ui.notifications.Views.NotificationsScreen
 import com.example.divvy.ui.receiptreview.Views.ReceiptReviewScreen
 import com.example.divvy.ui.scanreceipt.Views.ScanReceiptScreen
 import com.example.divvy.ui.splitexpense.Views.SplitExpenseScreen
@@ -48,7 +49,8 @@ fun AppNavHost(
                 },
                 onAddExpense = { navController.navigate(AppDestination.SplitExpense()) },
                 onLedgerClick = { navController.navigate(AppDestination.Ledger) },
-                onImportStatement = { navController.navigate(AppDestination.StatementUpload) }
+                onImportStatement = { navController.navigate(AppDestination.StatementUpload) },
+                onNotificationsClick = { navController.navigate(AppDestination.Notifications) }
             )
         }
         composable<AppDestination.Groups> {
@@ -84,6 +86,11 @@ fun AppNavHost(
         }
         composable<AppDestination.Profile> {
             ProfileScreen(
+                onBack = { navController.popBackStack() }
+            )
+        }
+        composable<AppDestination.Notifications> {
+            NotificationsScreen(
                 onBack = { navController.popBackStack() }
             )
         }
@@ -154,8 +161,8 @@ fun AppNavHost(
         composable<AppDestination.SplitByPercentage> { backStack ->
             val dest: AppDestination.SplitByPercentage = backStack.toRoute()
             val viewModel = androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel<
-                SplitByPercentageViewModel, SplitByPercentageViewModel.Factory
-            >(
+                    SplitByPercentageViewModel, SplitByPercentageViewModel.Factory
+                    >(
                 creationCallback = { factory ->
                     factory.create(dest.groupId, dest.amountDisplay, dest.description, dest.paidByUserId, dest.currency)
                 }
@@ -174,8 +181,8 @@ fun AppNavHost(
         composable<AppDestination.AssignItems> { backStack ->
             val dest: AppDestination.AssignItems = backStack.toRoute()
             val viewModel = androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel<
-                AssignItemsViewModel, AssignItemsViewModel.Factory
-            >(
+                    AssignItemsViewModel, AssignItemsViewModel.Factory
+                    >(
                 creationCallback = { factory ->
                     factory.create(dest.groupId, dest.amountDisplay, dest.description, dest.paidByUserId, dest.currency)
                 }
@@ -203,8 +210,8 @@ fun AppNavHost(
         }
         composable<AppDestination.TransactionReview> {
             val viewModel = androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel<
-                TransactionReviewViewModel
-            >()
+                    TransactionReviewViewModel
+                    >()
             TransactionReviewScreen(
                 viewModel = viewModel,
                 onBack = {
