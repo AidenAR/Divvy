@@ -180,13 +180,13 @@ fun SplitExpenseScreen(
                 AnimatedVisibility(
                     visible = uiState.splitMethod == SplitMethod.Equally &&
                         uiState.members.isNotEmpty() &&
-                        uiState.perPersonAmount.isNotEmpty()
+                        uiState.perPersonAmounts.isNotEmpty()
                 ) {
                     Column {
                         Spacer(Modifier.height(24.dp))
                         SplitPreview(
                             members = uiState.members,
-                            perPersonAmount = uiState.perPersonAmount,
+                            perPersonAmounts = uiState.perPersonAmounts,
                             currencyCode = uiState.currency,
                             coveredBy = uiState.coveredBy,
                             expandedCoveringMemberId = uiState.expandedCoveringMemberId,
@@ -739,7 +739,7 @@ private fun GroupCard(group: Group, isSelected: Boolean, onClick: () -> Unit) {
 @Composable
 private fun SplitPreview(
     members: List<SplitMember>,
-    perPersonAmount: String,
+    perPersonAmounts: Map<String, Long>,
     currencyCode: String,
     coveredBy: Map<String, String>,
     expandedCoveringMemberId: String?,
@@ -802,11 +802,12 @@ private fun SplitPreview(
                         }
                     }
                     val coversCount = coveredBy.values.count { it == member.id }
-                    val baseAmount = ((perPersonAmount.toDoubleOrNull() ?: 0.0) * 100).toLong()
+                    val baseAmount = perPersonAmounts[member.id] ?: 0L
                     val displayAmount = if (coverer != null) {
                         baseAmount
                     } else if (coversCount > 0) {
-                        baseAmount * (1 + coversCount)
+                        val coveredIds = coveredBy.filter { it.value == member.id }.keys
+                        baseAmount + coveredIds.sumOf { perPersonAmounts[it] ?: 0L }
                     } else {
                         baseAmount
                     }
