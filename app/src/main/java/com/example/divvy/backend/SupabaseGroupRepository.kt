@@ -55,8 +55,13 @@ class SupabaseGroupRepository @Inject constructor(
     private val supabaseClient: SupabaseClient
 ) : GroupRepository {
 
+    companion object {
+        private const val CACHE_TTL_MS = 30_000L
+    }
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val _groups = MutableStateFlow<DataResult<List<Group>>>(DataResult.Loading)
+    @Volatile private var _lastRefreshMs = 0L
 
     init {
         scope.launch { refreshGroups() }
@@ -74,6 +79,7 @@ class SupabaseGroupRepository @Inject constructor(
         }
 
     override suspend fun createGroup(name: String, icon: GroupIcon): Group {
+        _lastRefreshMs = 0L
         val params = buildJsonObject {
             put("p_name", name)
             put("p_icon", icon.name)
@@ -113,6 +119,7 @@ class SupabaseGroupRepository @Inject constructor(
     }
 
     override suspend fun deleteGroup(groupId: String) {
+        _lastRefreshMs = 0L
         val params = buildJsonObject { put("p_group_id", groupId) }
         supabaseClient.postgrest.rpc("delete_group_cascade", params)
         _groups.update { result ->
@@ -122,6 +129,9 @@ class SupabaseGroupRepository @Inject constructor(
     }
 
     override suspend fun refreshGroups() {
+        val now = System.currentTimeMillis()
+        if (now - _lastRefreshMs < CACHE_TTL_MS && _groups.value is DataResult.Success) return
+
         try {
             val rows = try {
                 supabaseClient.postgrest
@@ -150,6 +160,7 @@ class SupabaseGroupRepository @Inject constructor(
                     createdBy = row.createdBy
                 )
             })
+            _lastRefreshMs = now
         } catch (e: Exception) {
             Sentry.captureException(e)
             _groups.value = DataResult.Error("Failed to load groups", e)

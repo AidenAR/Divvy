@@ -13,6 +13,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -44,7 +45,12 @@ class SupabaseMemberRepository @Inject constructor(
     private val authRepository: AuthRepository
 ) : MemberRepository {
 
+    companion object {
+        private const val CACHE_TTL_MS = 30_000L
+    }
+
     private val _members = MutableStateFlow<Map<String, List<GroupMember>>>(emptyMap())
+    private val _lastRefreshMs = ConcurrentHashMap<String, Long>()
 
     override fun getMembers(groupId: String): Flow<List<GroupMember>> =
         _members.map { it[groupId] ?: emptyList() }
@@ -55,6 +61,7 @@ class SupabaseMemberRepository @Inject constructor(
             put("p_user_id", userId)
         }
         supabaseClient.postgrest.rpc("add_group_member", params)
+        _lastRefreshMs.remove(groupId)
         refreshMembers(groupId)
     }
 
@@ -66,15 +73,22 @@ class SupabaseMemberRepository @Inject constructor(
             }
         }
         _members.update { it - groupId }
+        _lastRefreshMs.remove(groupId)
     }
 
     override suspend fun refreshMembers(groupId: String) {
+        val now = System.currentTimeMillis()
+        val lastRefresh = _lastRefreshMs[groupId] ?: 0L
+        if (now - lastRefresh < CACHE_TTL_MS && _members.value.containsKey(groupId)) return
+
         val members = fetchMembers(groupId)
         _members.update { it + (groupId to members) }
+        _lastRefreshMs[groupId] = now
     }
 
     override fun clearCache(groupId: String) {
         _members.update { it - groupId }
+        _lastRefreshMs.remove(groupId)
     }
 
     private suspend fun fetchMembers(groupId: String): List<GroupMember> {

@@ -12,6 +12,9 @@ import com.example.divvy.models.LedgerEntry
 import com.example.divvy.models.LedgerEntryType
 import com.example.divvy.models.formatAmount
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -88,10 +91,13 @@ class LedgerViewModel @Inject constructor(
 
                 val memberNameMap = mutableMapOf<String, String>()
                 memberNameMap[myUserId] = "You"
-                for (group in groups) {
-                    memberRepository.refreshMembers(group.id)
-                    val members = memberRepository.getMembers(group.id).first()
-                    for (member in members) {
+                coroutineScope {
+                    groups.map { group ->
+                        async {
+                            memberRepository.refreshMembers(group.id)
+                            memberRepository.getMembers(group.id).first()
+                        }
+                    }.awaitAll().flatten().forEach { member ->
                         memberNameMap[member.userId] = member.name
                     }
                 }

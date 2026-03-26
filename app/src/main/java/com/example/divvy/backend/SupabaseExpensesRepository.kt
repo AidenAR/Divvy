@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -25,7 +26,13 @@ class SupabaseExpensesRepository @Inject constructor(
     private val authRepository: AuthRepository
 ) : ExpensesRepository {
 
+    companion object {
+        private const val CACHE_TTL_MS = 30_000L
+    }
+
     private val _expenses = MutableStateFlow<Map<String, List<GroupExpense>>>(emptyMap())
+    @Volatile private var _lastAllRefreshMs = 0L
+    private val _lastGroupRefreshMs = ConcurrentHashMap<String, Long>()
 
     override suspend fun listExpenses(): List<Expense> =
         supabaseClient.from("expenses").select().decodeList()
@@ -118,6 +125,8 @@ class SupabaseExpensesRepository @Inject constructor(
         _expenses.update { map ->
             map + (groupId to ((map[groupId] ?: emptyList()) + groupExpense))
         }
+        _lastAllRefreshMs = 0L
+        _lastGroupRefreshMs.remove(groupId)
         return groupExpense
     }
 
@@ -156,11 +165,15 @@ class SupabaseExpensesRepository @Inject constructor(
             }
         }
         supabaseClient.postgrest.rpc("update_expense_splits", params)
+        _lastAllRefreshMs = 0L
+        _lastGroupRefreshMs.clear()
     }
 
     override suspend fun deleteExpense(expenseId: String) {
         supabaseClient.from("expenses")
             .delete { filter { eq("id", expenseId) } }
+        _lastAllRefreshMs = 0L
+        _lastGroupRefreshMs.clear()
     }
 
     override suspend fun saveReceiptItems(items: List<ReceiptItemRow>) {
@@ -175,16 +188,26 @@ class SupabaseExpensesRepository @Inject constructor(
         _expenses.map { it.values.flatten() }
 
     override suspend fun refreshGroupExpenses(groupId: String) {
+        val now = System.currentTimeMillis()
+        val lastRefresh = _lastGroupRefreshMs[groupId] ?: 0L
+        if (now - lastRefresh < CACHE_TTL_MS && _expenses.value.containsKey(groupId)) return
+
         val expenses = listGroupExpenses(groupId)
         _expenses.update { it + (groupId to expenses) }
+        _lastGroupRefreshMs[groupId] = now
     }
 
     override suspend fun refreshAllExpenses() {
+        val now = System.currentTimeMillis()
+        if (now - _lastAllRefreshMs < CACHE_TTL_MS && _expenses.value.isNotEmpty()) return
+
         try {
             val all = supabaseClient.from("group_expenses_with_splits")
                 .select()
                 .decodeList<GroupExpense>()
             _expenses.value = all.groupBy { it.groupId }
+            _lastAllRefreshMs = now
+            _expenses.value.keys.forEach { _lastGroupRefreshMs[it] = now }
         } catch (e: Exception) {
             Sentry.captureException(e)
         }
