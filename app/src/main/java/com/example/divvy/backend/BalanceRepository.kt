@@ -4,6 +4,7 @@ import com.example.divvy.models.MemberBalance
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.rpc
+import io.sentry.Sentry
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
@@ -44,12 +45,15 @@ class SupabaseBalanceRepository @Inject constructor(
             supabaseClient.postgrest
                 .rpc("net_balances_v2", params)
                 .decodeList<NetBalanceRow>()
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            // v2 RPC may not exist yet on all envs — try fallback, but still record the miss
+            Sentry.addBreadcrumb("net_balances_v2 failed for group $groupId, falling back")
             try {
                 supabaseClient.postgrest
                     .rpc("net_balances", params)
                     .decodeList<NetBalanceRow>()
-            } catch (_: Exception) {
+            } catch (e2: Exception) {
+                Sentry.captureException(e2)
                 emptyList()
             }
         }

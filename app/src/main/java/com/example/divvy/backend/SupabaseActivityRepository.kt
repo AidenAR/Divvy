@@ -4,6 +4,7 @@ import com.example.divvy.models.ActivityFeedItem
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.rpc
+import io.sentry.Sentry
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import javax.inject.Inject
@@ -26,14 +27,16 @@ class SupabaseActivityRepository @Inject constructor(
                 supabaseClient.postgrest
                     .rpc("get_global_activity_feed_v2")
                     .decodeList<ActivityFeedItem>()
-            } catch (_: Exception) {
+            } catch (e: Exception) {
                 // Fallback to original function if _v2 is not available
+                Sentry.addBreadcrumb("get_global_activity_feed_v2 unavailable, falling back")
                 supabaseClient.postgrest
                     .rpc("get_global_activity_feed")
                     .decodeList<ActivityFeedItem>()
             }
             _activityFeed.emit(DataResult.Success(items))
         } catch (e: Exception) {
+            Sentry.captureException(e)
             _activityFeed.emit(DataResult.Error("Failed to load activity feed", e))
         }
     }

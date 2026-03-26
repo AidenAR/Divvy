@@ -1,5 +1,6 @@
 package com.example.divvy.backend
 
+import io.sentry.Sentry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
@@ -44,7 +45,10 @@ class FrankfurterForexRepository @Inject constructor() : ForexRepository {
                 val rates = response.rates + (base to 1.0)
                 cache[base] = rates
                 rates
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                // A null return causes callers to use the hardcoded fallback rate table.
+                // Capture so we know if Frankfurter is down or the base currency is unsupported.
+                Sentry.captureException(e)
                 null
             }
         }

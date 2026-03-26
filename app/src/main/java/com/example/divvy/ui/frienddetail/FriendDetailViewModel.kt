@@ -10,6 +10,7 @@ import com.example.divvy.backend.FriendsRepository
 import com.example.divvy.backend.GroupRepository
 import com.example.divvy.backend.MemberRepository
 import com.example.divvy.components.GroupIcon
+import io.sentry.Sentry
 import com.example.divvy.models.FriendActivityItem
 import com.example.divvy.models.FriendGroupBalances
 import com.example.divvy.models.Group
@@ -163,7 +164,9 @@ class FriendDetailViewModel @AssistedInject constructor(
                 if (groups is DataResult.Success) {
                     allGroupIds.addAll(groups.data.map { it.id })
                 }
-            } catch (_: Exception) { }
+            } catch (e: Exception) {
+                Sentry.captureException(e)
+            }
 
             var existing1on1GroupId: String? = null
             for (groupId in allGroupIds) {
@@ -174,7 +177,7 @@ class FriendDetailViewModel @AssistedInject constructor(
                         existing1on1GroupId = groupId
                         break
                     }
-                } catch (_: Exception) { }
+                } catch (_: Exception) { } // non-fatal: skip this group and continue
             }
 
             if (existing1on1GroupId != null) {
@@ -186,7 +189,9 @@ class FriendDetailViewModel @AssistedInject constructor(
                     memberRepository.addMember(group.id, friendUserId)
                     groupRepository.refreshGroups()
                     _uiState.update { it.copy(navigateToSplitWithGroupId = group.id) }
-                } catch (_: Exception) { }
+                } catch (e: Exception) {
+                    Sentry.captureException(e)
+                }
             }
         }
     }
@@ -245,7 +250,9 @@ class FriendDetailViewModel @AssistedInject constructor(
                         }
                     }
                 }
-            } catch (_: Exception) { }
+            } catch (e: Exception) {
+                Sentry.captureException(e)
+            }
         }
 
         return relevantExpenses
