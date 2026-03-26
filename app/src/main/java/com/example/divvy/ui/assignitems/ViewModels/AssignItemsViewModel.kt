@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import io.sentry.Sentry
 
 data class AssignMember(
     val id: String,
@@ -252,7 +253,7 @@ class AssignItemsViewModel @AssistedInject constructor(
             try {
                 expensesRepository.saveReceiptItems(receiptRows)
             } catch (e: Exception) {
-                Log.e("AssignItems", "Failed to save receipt items", e)
+                Sentry.captureException(e)
             }
             balanceRepository.refreshBalances(groupId)
             groupRepository.refreshGroups()

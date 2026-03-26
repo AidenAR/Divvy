@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import io.sentry.Sentry
 
 data class StatementUploadUiState(
     val isProcessing: Boolean = false,
@@ -61,6 +62,7 @@ class StatementUploadViewModel @Inject constructor(
                 _uiState.update { it.copy(isProcessing = false) }
                 _events.send(UploadEvent.TransactionsParsed(transactions))
             } catch (e: Exception) {
+                Sentry.captureException(e)
                 _uiState.update {
                     it.copy(
                         isProcessing = false,

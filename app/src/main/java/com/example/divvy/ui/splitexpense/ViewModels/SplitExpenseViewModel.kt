@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import io.sentry.Sentry
 
 enum class SplitMethod(val title: String, val subtitle: String) {
     Equally("Split equally", "Everyone pays the same"),
@@ -391,6 +392,7 @@ class SplitExpenseViewModel @Inject constructor(
                 _uiState.update { it.copy(isCreating = false) }
                 _events.send(SplitEvent.Created)
             } catch (e: Exception) {
+                Sentry.captureException(e)
                 _uiState.update {
                     it.copy(
                         isCreating = false,

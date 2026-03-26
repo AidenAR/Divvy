@@ -3,6 +3,7 @@ package com.example.divvy.ui.profile.ViewModels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.divvy.FeatureFlags
+import com.example.divvy.SentryUserSync
 import com.example.divvy.ui.auth.DummyAccount
 import com.example.divvy.backend.ProfilesRepository
 import com.example.divvy.backend.SupabaseClientProvider
@@ -17,6 +18,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import io.sentry.Sentry
 
 data class ProfileUiState(
     val profile: ProfileRow? = null,
@@ -81,7 +83,10 @@ class ProfileViewModel @Inject constructor(
                         isLoading = false
                     )
                 }
+                // Keep Sentry user context fresh for returning users
+                SentryUserSync.attach(user.id)
             } catch (e: Exception) {
+                Sentry.captureException(e)
                 _uiState.update {
                     it.copy(isLoading = false, errorMessage = e.message ?: "Failed to load profile.")
                 }
@@ -99,9 +104,11 @@ class ProfileViewModel @Inject constructor(
             }
             try {
                 SupabaseClientProvider.client.auth.signOut()
+                SentryUserSync.detach()
                 _uiState.update { it.copy(isLoading = false, profile = null, email = null, phone = null, phoneVerified = null) }
                 onComplete()
             } catch (e: Exception) {
+                Sentry.captureException(e)
                 _uiState.update {
                     it.copy(isLoading = false, errorMessage = e.message ?: "Failed to sign out.")
                 }

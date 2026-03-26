@@ -20,6 +20,7 @@ val supabaseUrl = localProperties.getProperty("SUPABASE_URL", "")
 val supabaseAnonKey = localProperties.getProperty("SUPABASE_ANON_KEY", "")
 val authBypass = localProperties.getProperty("AUTH_BYPASS", "false").toBoolean()
 val geminiApiKey = localProperties.getProperty("GEMINI_API_KEY", "")
+val sentryDsn = localProperties.getProperty("SENTRY_DSN", "https://eface88f73297760c177f37741e9d095@o4511108456906752.ingest.us.sentry.io/4511108458414080")
 
 android {
     namespace = "com.example.divvy"
@@ -44,6 +45,7 @@ android {
             buildConfigField("String", "SUPABASE_ANON_KEY", "\"$supabaseAnonKey\"")
             buildConfigField("Boolean", "AUTH_BYPASS", "$authBypass")
             buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
+            buildConfigField("String", "SENTRY_DSN", "\"$sentryDsn\"")
         }
         release {
             isMinifyEnabled = false
@@ -117,4 +119,8 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+
+    implementation(libs.sentry.android)
+    implementation(libs.sentry.android.timber)
+    implementation(libs.timber)
 }

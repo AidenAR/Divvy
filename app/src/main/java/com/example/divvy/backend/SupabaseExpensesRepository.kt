@@ -5,6 +5,7 @@ import com.example.divvy.models.ExpenseSplit
 import com.example.divvy.models.GroupExpense
 import com.example.divvy.models.ReceiptItemRow
 import io.github.jan.supabase.SupabaseClient
+import io.sentry.Sentry
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.rpc
@@ -184,6 +185,8 @@ class SupabaseExpensesRepository @Inject constructor(
                 .select()
                 .decodeList<GroupExpense>()
             _expenses.value = all.groupBy { it.groupId }
-        } catch (_: Exception) { }
+        } catch (e: Exception) {
+            Sentry.captureException(e)
+        }
     }
 }

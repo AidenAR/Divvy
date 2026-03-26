@@ -3,6 +3,7 @@ package com.example.divvy.backend
 import com.example.divvy.components.GroupIcon
 import com.example.divvy.models.Group
 import io.github.jan.supabase.SupabaseClient
+import io.sentry.Sentry
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.rpc
@@ -126,8 +127,9 @@ class SupabaseGroupRepository @Inject constructor(
                 supabaseClient.postgrest
                     .rpc("get_my_groups_summary_v2")
                     .decodeList<GroupSummaryRow>()
-            } catch (_: Exception) {
+            } catch (e: Exception) {
                 // Fallback to original function if _v2 is not available
+                Sentry.addBreadcrumb("get_my_groups_summary_v2 unavailable, falling back")
                 supabaseClient.postgrest
                     .rpc("get_my_groups_summary")
                     .decodeList<GroupSummaryRow>()
@@ -149,6 +151,7 @@ class SupabaseGroupRepository @Inject constructor(
                 )
             })
         } catch (e: Exception) {
+            Sentry.captureException(e)
             _groups.value = DataResult.Error("Failed to load groups", e)
         }
     }

@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.io.File
 import javax.inject.Inject
+import io.sentry.Sentry
 
 enum class ScanUiState { Camera, Processing, Error }
 
@@ -65,6 +66,7 @@ class ScanReceiptViewModel @Inject constructor(
                 _state.update { it.copy(uiState = ScanUiState.Camera) }
                 _events.send(ScanEvent.NavigateToReview)
             } catch (e: Exception) {
+                Sentry.captureException(e)
                 _state.update {
                     it.copy(
                         uiState = ScanUiState.Error,

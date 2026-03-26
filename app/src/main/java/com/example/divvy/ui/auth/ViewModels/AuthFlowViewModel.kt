@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.example.divvy.backend.ProfilesRepository
 import com.example.divvy.backend.SupabaseClientProvider
 import com.example.divvy.models.ProfileRow
+import com.example.divvy.SentryUserSync
+import io.sentry.Sentry
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import io.github.jan.supabase.gotrue.OtpType
@@ -166,6 +168,8 @@ class AuthFlowViewModel @Inject constructor(
                     phoneVerified = state.value.phoneVerified
                 )
             )
+            // Tag all subsequent Sentry events with this user's opaque UUID
+            SentryUserSync.attach(user.id)
             onSuccess()
         }
     }
@@ -199,7 +203,8 @@ class AuthFlowViewModel @Inject constructor(
             val user = SupabaseClientProvider.client.auth.currentUserOrNull()
                 ?: SupabaseClientProvider.client.auth.retrieveUserForCurrentSession(updateSession = true)
             profilesRepository.getProfile(user.id) != null
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Sentry.captureException(e)
             false
         }
     }

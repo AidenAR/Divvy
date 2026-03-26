@@ -14,6 +14,8 @@
         android:roundIcon="@mipmap/ic_launcher_rounded"
         android:supportsRtl="true"
         android:theme="@style/Theme.Divvy">
+        <meta-data android:name="io.sentry.dsn" android:value="https://eface88f73297760c177f37741e9d095@o4511108456906752.ingest.us.sentry.io/4511108458414080" />
+        <meta-data android:name="io.sentry.auto-init" android:value="true" />
         <activity
             android:name=".AuthActivity"
             android:exported="true"
