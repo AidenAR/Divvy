@@ -17,6 +17,7 @@ import com.example.divvy.ui.groups.Views.GroupsScreen
 import com.example.divvy.ui.home.Views.HomeScreen
 import com.example.divvy.ui.analytics.Views.AnalyticsScreen
 import com.example.divvy.ui.groupdetail.Views.GroupDetailScreen
+import com.example.divvy.ui.groupmembers.Views.GroupMembersScreen
 import com.example.divvy.ui.ledger.Views.LedgerScreen
 import com.example.divvy.ui.profile.Views.ProfileScreen
 import com.example.divvy.ui.notifications.Views.NotificationsScreen
@@ -120,6 +121,22 @@ fun AppNavHost(
                 },
                 onAddExpense = {
                     navController.navigate(AppDestination.SplitExpense(preselectedGroupId = dest.groupId))
+                },
+                onViewMembers = {
+                    navController.navigate(AppDestination.GroupMembers(dest.groupId))
+                }
+            )
+        }
+        composable<AppDestination.GroupMembers> { backStack ->
+            val dest: AppDestination.GroupMembers = backStack.toRoute()
+            GroupMembersScreen(
+                groupId = dest.groupId,
+                onBack = { navController.popBackStack() },
+                onLeaveGroup = {
+                    navController.popBackStack(
+                        route = AppDestination.Home,
+                        inclusive = false
+                    )
                 }
             )
         }
