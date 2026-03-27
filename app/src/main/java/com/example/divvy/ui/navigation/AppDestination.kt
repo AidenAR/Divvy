@@ -55,4 +55,7 @@ sealed interface AppDestination {
 
     @Serializable
     data object TransactionReview : AppDestination
+
+    @Serializable
+    data class JoinGroup(val groupId: String, val groupName: String = "") : AppDestination
 }
