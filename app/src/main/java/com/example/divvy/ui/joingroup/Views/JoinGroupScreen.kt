@@ -57,10 +57,6 @@ fun JoinGroupScreen(
         if (uiState.joined) onJoined(groupId)
     }
 
-    LaunchedEffect(uiState.alreadyMember) {
-        if (uiState.alreadyMember) onJoined(groupId)
-    }
-
     Scaffold(
         topBar = {
             TopAppBar(

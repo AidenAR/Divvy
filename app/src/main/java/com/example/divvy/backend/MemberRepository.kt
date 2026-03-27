@@ -20,6 +20,7 @@ import javax.inject.Singleton
 interface MemberRepository {
     fun getMembers(groupId: String): Flow<List<GroupMember>>
     suspend fun addMember(groupId: String, userId: String)
+    suspend fun joinGroup(groupId: String)
     suspend fun leaveGroup(groupId: String)
     suspend fun refreshMembers(groupId: String)
     fun clearCache(groupId: String)
@@ -61,6 +62,13 @@ class SupabaseMemberRepository @Inject constructor(
             put("p_user_id", userId)
         }
         supabaseClient.postgrest.rpc("add_group_member", params)
+        _lastRefreshMs.remove(groupId)
+        refreshMembers(groupId)
+    }
+
+    override suspend fun joinGroup(groupId: String) {
+        val params = buildJsonObject { put("p_group_id", groupId) }
+        supabaseClient.postgrest.rpc("join_group", params)
         _lastRefreshMs.remove(groupId)
         refreshMembers(groupId)
     }
