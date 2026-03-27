@@ -122,22 +122,27 @@ class AssignItemsViewModel @AssistedInject constructor(
 
     private fun load() {
         viewModelScope.launch {
-            val currentUserId = authRepository.getCurrentUserId()
-            memberRepository.refreshMembers(groupId)
-            val groupMembers = memberRepository.getMembers(groupId).first()
-            val allMembers = mutableListOf(AssignMember(currentUserId, "You", MemberColors[0]))
-            groupMembers.forEachIndexed { i, gm ->
-                allMembers += AssignMember(gm.userId, gm.name, MemberColors[(i + 1) % MemberColors.size])
-            }
+            try {
+                val currentUserId = authRepository.getCurrentUserId()
+                memberRepository.refreshMembers(groupId)
+                val groupMembers = memberRepository.getMembers(groupId).first()
+                val allMembers = mutableListOf(AssignMember(currentUserId, "You", MemberColors[0]))
+                groupMembers.filter { it.userId != currentUserId }.forEachIndexed { i, gm ->
+                    allMembers += AssignMember(gm.userId, gm.name, MemberColors[(i + 1) % MemberColors.size])
+                }
 
-            val scannedReceipt = scannedReceiptStore.peek()
-            val items = if (scannedReceipt != null && scannedReceipt.items.isNotEmpty()) {
-                scannedReceipt.items.map { ReceiptItem(it.id, it.name, it.priceCents) }
-            } else {
-                fallbackItems
-            }
+                val scannedReceipt = scannedReceiptStore.peek()
+                val items = if (scannedReceipt != null && scannedReceipt.items.isNotEmpty()) {
+                    scannedReceipt.items.map { ReceiptItem(it.id, it.name, it.priceCents) }
+                } else {
+                    fallbackItems
+                }
 
-            _uiState.update { it.copy(members = allMembers, items = items, isLoading = false) }
+                _uiState.update { it.copy(members = allMembers, items = items, isLoading = false) }
+            } catch (e: Exception) {
+                Sentry.captureException(e)
+                _uiState.update { it.copy(isLoading = false) }
+            }
         }
     }
 
@@ -224,42 +229,47 @@ class AssignItemsViewModel @AssistedInject constructor(
 
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true) }
-            val groupExpense = expensesRepository.createExpenseWithSplits(
-                groupId = groupId,
-                description = state.description,
-                amountCents = amountCents,
-                currency = currency,
-                splitMethod = "BY_ITEM",
-                paidByUserId = state.paidByUserId,
-                splits = splits
-            )
-            val receiptRows = state.items.map { item ->
-                val assignees = state.assignments[item.id].orEmpty()
-                ReceiptItemRow(
-                    expenseId = groupExpense.id,
-                    description = item.name,
-                    priceCents = item.priceCents,
-                    assignedUserId = assignees.singleOrNull()
-                )
-            }.toMutableList()
-            if (receipt != null) {
-                if (receipt.tipCents > 0) {
-                    receiptRows += ReceiptItemRow(groupExpense.id, "Tip", receipt.tipCents)
-                }
-                if (receipt.discountCents > 0) {
-                    receiptRows += ReceiptItemRow(groupExpense.id, "Discount", receipt.discountCents)
-                }
-            }
             try {
-                expensesRepository.saveReceiptItems(receiptRows)
+                val groupExpense = expensesRepository.createExpenseWithSplits(
+                    groupId = groupId,
+                    description = state.description,
+                    amountCents = amountCents,
+                    currency = currency,
+                    splitMethod = "BY_ITEM",
+                    paidByUserId = state.paidByUserId,
+                    splits = splits
+                )
+                val receiptRows = state.items.map { item ->
+                    val assignees = state.assignments[item.id].orEmpty()
+                    ReceiptItemRow(
+                        expenseId = groupExpense.id,
+                        description = item.name,
+                        priceCents = item.priceCents,
+                        assignedUserId = assignees.singleOrNull()
+                    )
+                }.toMutableList()
+                if (receipt != null) {
+                    if (receipt.tipCents > 0) {
+                        receiptRows += ReceiptItemRow(groupExpense.id, "Tip", receipt.tipCents)
+                    }
+                    if (receipt.discountCents > 0) {
+                        receiptRows += ReceiptItemRow(groupExpense.id, "Discount", receipt.discountCents)
+                    }
+                }
+                try {
+                    expensesRepository.saveReceiptItems(receiptRows)
+                } catch (e: Exception) {
+                    Sentry.captureException(e)
+                }
+                balanceRepository.refreshBalances(groupId)
+                groupRepository.refreshGroups()
+                activityRepository.refreshActivityFeed()
+                _uiState.update { it.copy(isSaving = false) }
+                _done.send(Unit)
             } catch (e: Exception) {
                 Sentry.captureException(e)
+                _uiState.update { it.copy(isSaving = false) }
             }
-            balanceRepository.refreshBalances(groupId)
-            groupRepository.refreshGroups()
-            activityRepository.refreshActivityFeed()
-            _uiState.update { it.copy(isSaving = false) }
-            _done.send(Unit)
         }
     }
 }
