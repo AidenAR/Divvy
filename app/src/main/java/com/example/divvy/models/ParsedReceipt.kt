@@ -13,6 +13,7 @@ data class ReceiptItemRow(
     @EncodeDefault @SerialName("assigned_user_id") val assignedUserId: String? = null
 )
 
+@Serializable
 data class ParsedReceiptItem(
     val id: String = UUID.randomUUID().toString(),
     val name: String,
@@ -22,6 +23,7 @@ data class ParsedReceiptItem(
         get() = "$${String.format("%.2f", priceCents / 100.0)}"
 }
 
+@Serializable
 data class ParsedReceipt(
     val imageUri: String? = null,
     val merchant: String = "",

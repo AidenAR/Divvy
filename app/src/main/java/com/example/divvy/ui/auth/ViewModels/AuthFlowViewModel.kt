@@ -1,13 +1,15 @@
 package com.example.divvy.ui.auth.ViewModels
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.divvy.backend.ProfilesRepository
 import com.example.divvy.backend.SupabaseClientProvider
 import com.example.divvy.models.ProfileRow
 import com.example.divvy.SentryUserSync
-import io.sentry.Sentry
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import io.sentry.Sentry
 import javax.inject.Inject
 import io.github.jan.supabase.gotrue.OtpType
 import io.github.jan.supabase.gotrue.SessionStatus
@@ -42,8 +44,13 @@ data class AuthFlowState(
 
 @HiltViewModel
 class AuthFlowViewModel @Inject constructor(
-    private val profilesRepository: ProfilesRepository
+    private val profilesRepository: ProfilesRepository,
+    @ApplicationContext private val appContext: Context
 ) : ViewModel() {
+
+    private val profilePrefs by lazy {
+        appContext.getSharedPreferences("profile_cache", Context.MODE_PRIVATE)
+    }
 
     private val _state = MutableStateFlow(AuthFlowState())
     val state: StateFlow<AuthFlowState> = _state.asStateFlow()
@@ -168,6 +175,8 @@ class AuthFlowViewModel @Inject constructor(
                     phoneVerified = state.value.phoneVerified
                 )
             )
+            // Cache profile existence for offline auth
+            profilePrefs.edit().putBoolean("has_profile_${user.id}", true).apply()
             // Tag all subsequent Sentry events with this user's opaque UUID
             SentryUserSync.attach(user.id)
             onSuccess()
@@ -202,8 +211,19 @@ class AuthFlowViewModel @Inject constructor(
         return try {
             val user = SupabaseClientProvider.client.auth.currentUserOrNull()
                 ?: SupabaseClientProvider.client.auth.retrieveUserForCurrentSession(updateSession = true)
-            profilesRepository.getProfile(user.id) != null
+            val profile = profilesRepository.getProfile(user.id)
+            val hasIt = profile != null
+            if (hasIt) {
+                // Cache successful profile check for offline use
+                profilePrefs.edit().putBoolean("has_profile_${user.id}", true).apply()
+            }
+            hasIt
         } catch (e: Exception) {
+            // Network failed — check local cache
+            val user = SupabaseClientProvider.client.auth.currentUserOrNull()
+            if (user != null && profilePrefs.getBoolean("has_profile_${user.id}", false)) {
+                return true
+            }
             Sentry.captureException(e)
             false
         }

@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.divvy.backend.GeminiReceiptService
 import com.example.divvy.backend.ScannedReceiptStore
+import com.example.divvy.offline.NetworkMonitor
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,7 +30,8 @@ data class ScanScreenState(
 @HiltViewModel
 class ScanReceiptViewModel @Inject constructor(
     private val geminiReceiptService: GeminiReceiptService,
-    private val scannedReceiptStore: ScannedReceiptStore
+    private val scannedReceiptStore: ScannedReceiptStore,
+    private val networkMonitor: NetworkMonitor
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ScanScreenState())
@@ -47,6 +49,16 @@ class ScanReceiptViewModel @Inject constructor(
     }
 
     fun processImage(context: Context, uri: Uri) {
+        if (!networkMonitor.isOnline.value) {
+            _state.update {
+                it.copy(
+                    uiState = ScanUiState.Error,
+                    errorMessage = "Receipt scanning requires an internet connection.\nPlease connect to the internet and try again."
+                )
+            }
+            return
+        }
+
         viewModelScope.launch {
             _state.update { it.copy(uiState = ScanUiState.Processing, errorMessage = null) }
             try {

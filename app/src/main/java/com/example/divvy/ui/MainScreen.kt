@@ -1,5 +1,6 @@
 package com.example.divvy.ui
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -9,13 +10,17 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.example.divvy.components.OfflineBanner
+import com.example.divvy.components.PendingSyncBanner
 import com.example.divvy.notifications.RequestNotificationPermission
+import com.example.divvy.offline.NetworkMonitor
+import com.example.divvy.offline.OfflineSyncManager
 import com.example.divvy.ui.navigation.AppDestination
 import com.example.divvy.ui.navigation.AppNavHost
 import com.example.divvy.ui.navigation.BottomNavigationBar
 
 @Composable
-fun MainScreen() {
+fun MainScreen(networkMonitor: NetworkMonitor, syncManager: OfflineSyncManager) {
     RequestNotificationPermission()
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -34,9 +39,13 @@ fun MainScreen() {
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { innerPadding ->
-        AppNavHost(
-            navController = navController,
-            modifier = Modifier.padding(innerPadding)
-        )
+        Column(modifier = Modifier.padding(innerPadding)) {
+            OfflineBanner(networkMonitor)
+            PendingSyncBanner(syncManager)
+            AppNavHost(
+                navController = navController,
+                modifier = Modifier.weight(1f)
+            )
+        }
     }
 }

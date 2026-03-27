@@ -440,7 +440,8 @@ class GroupDetailViewModel @AssistedInject constructor(
                     else memberMap[expense.paidByUserId]?.name ?: "Unknown",
                     paidByCurrentUser = paidByCurrentUser,
                     timestamp = expense.createdAt,
-                    currency = expense.currency
+                    currency = expense.currency,
+                    isPending = expense.id.startsWith("local_")
                 )
             }
     }
