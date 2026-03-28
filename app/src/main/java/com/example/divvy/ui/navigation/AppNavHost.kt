@@ -191,10 +191,8 @@ fun AppNavHost(
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() },
                 onDone = {
-                    navController.popBackStack(
-                        route = AppDestination.Home,
-                        inclusive = false
-                    )
+                    navController.popBackStack() // pop SplitByPercentage
+                    navController.popBackStack() // pop SplitExpense → land on GroupDetail
                 }
             )
         }
@@ -211,10 +209,8 @@ fun AppNavHost(
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() },
                 onDone = {
-                    navController.popBackStack(
-                        route = AppDestination.Home,
-                        inclusive = false
-                    )
+                    navController.popBackStack() // pop AssignItems
+                    navController.popBackStack() // pop SplitExpense → land on GroupDetail
                 }
             )
         }

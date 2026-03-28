@@ -379,6 +379,7 @@ class SplitExpenseViewModel @Inject constructor(
                     splits = splits
                 )
                 balanceRepository.refreshBalances(groupId)
+                expensesRepository.refreshGroupExpenses(groupId)
                 groupRepository.refreshGroups()
                 activityRepository.refreshActivityFeed()
                 _uiState.update { it.copy(isCreating = false) }
