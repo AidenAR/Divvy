@@ -17,6 +17,9 @@ sealed interface AppDestination {
     data class GroupDetail(val groupId: String) : AppDestination
 
     @Serializable
+    data class GroupMembers(val groupId: String) : AppDestination
+
+    @Serializable
     data class FriendDetail(val friendUserId: String) : AppDestination
 
     @Serializable
