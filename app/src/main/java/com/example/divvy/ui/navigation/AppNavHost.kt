@@ -17,6 +17,7 @@ import com.example.divvy.ui.groups.Views.GroupsScreen
 import com.example.divvy.ui.home.Views.HomeScreen
 import com.example.divvy.ui.analytics.Views.AnalyticsScreen
 import com.example.divvy.ui.groupdetail.Views.GroupDetailScreen
+import com.example.divvy.ui.groupmembers.Views.GroupMembersScreen
 import com.example.divvy.ui.ledger.Views.LedgerScreen
 import com.example.divvy.ui.profile.Views.ProfileScreen
 import com.example.divvy.ui.notifications.Views.NotificationsScreen
@@ -26,6 +27,9 @@ import com.example.divvy.ui.splitexpense.Views.SplitExpenseScreen
 import com.example.divvy.ui.statementimport.Views.StatementUploadScreen
 import com.example.divvy.ui.statementimport.Views.TransactionReviewScreen
 import com.example.divvy.ui.statementimport.ViewModels.TransactionReviewViewModel
+import androidx.navigation.navDeepLink
+import com.example.divvy.ui.joingroup.ViewModels.JoinGroupViewModel
+import com.example.divvy.ui.joingroup.Views.JoinGroupScreen
 
 @Composable
 fun AppNavHost(
@@ -117,6 +121,22 @@ fun AppNavHost(
                 },
                 onAddExpense = {
                     navController.navigate(AppDestination.SplitExpense(preselectedGroupId = dest.groupId))
+                },
+                onViewMembers = {
+                    navController.navigate(AppDestination.GroupMembers(dest.groupId))
+                }
+            )
+        }
+        composable<AppDestination.GroupMembers> { backStack ->
+            val dest: AppDestination.GroupMembers = backStack.toRoute()
+            GroupMembersScreen(
+                groupId = dest.groupId,
+                onBack = { navController.popBackStack() },
+                onLeaveGroup = {
+                    navController.popBackStack(
+                        route = AppDestination.Home,
+                        inclusive = false
+                    )
                 }
             )
         }
@@ -234,6 +254,21 @@ fun AppNavHost(
                         route = AppDestination.Home,
                         inclusive = false
                     )
+                }
+            )
+        }
+        composable<AppDestination.JoinGroup>(
+            deepLinks = listOf(navDeepLink<AppDestination.JoinGroup>(basePath = "divvy://join"))
+        ) { backStack ->
+            val dest: AppDestination.JoinGroup = backStack.toRoute()
+            JoinGroupScreen(
+                groupId = dest.groupId,
+                groupName = dest.groupName,
+                onBack = { navController.popBackStack() },
+                onJoined = { id ->
+                    navController.navigate(AppDestination.GroupDetail(id)) {
+                        popUpTo(AppDestination.Home) { inclusive = false }
+                    }
                 }
             )
         }

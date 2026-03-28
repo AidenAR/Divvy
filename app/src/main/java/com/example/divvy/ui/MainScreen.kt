@@ -1,12 +1,17 @@
 package com.example.divvy.ui
 
 import androidx.compose.foundation.layout.Column
+import android.content.Intent
+import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.util.Consumer
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
@@ -23,6 +28,12 @@ import com.example.divvy.ui.navigation.BottomNavigationBar
 fun MainScreen(networkMonitor: NetworkMonitor, syncManager: OfflineSyncManager) {
     RequestNotificationPermission()
     val navController = rememberNavController()
+    val activity = LocalContext.current as ComponentActivity
+    DisposableEffect(navController) {
+        val listener = Consumer<Intent> { navController.handleDeepLink(it) }
+        activity.addOnNewIntentListener(listener)
+        onDispose { activity.removeOnNewIntentListener(listener) }
+    }
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
 
