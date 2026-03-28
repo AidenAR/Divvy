@@ -1,6 +1,7 @@
 package com.example.divvy.ui.notifications.Views
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,12 +10,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowBackIosNew
 import androidx.compose.material.icons.rounded.Handshake
@@ -37,16 +40,24 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import coil.compose.AsyncImage
+import com.example.divvy.components.GroupIcon
 import com.example.divvy.models.ActivityFeedItem
 import com.example.divvy.models.formatAmount
 import com.example.divvy.ui.notifications.ViewModels.NotificationsViewModel
+import com.example.divvy.ui.theme.Amber
 import com.example.divvy.ui.theme.AvatarColors
-import com.example.divvy.ui.theme.BorderLight
+import com.example.divvy.ui.theme.Charcoal
 import com.example.divvy.ui.theme.TextSecondary
 import io.sentry.Sentry
 import java.time.Instant
@@ -155,11 +166,12 @@ fun NotificationsScreen(
                         .fillMaxSize()
                         .padding(innerPadding)
                         .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(1.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(uiState.items, key = { it.id }) { item ->
-                        NotificationRow(item = item)
+                        NotificationCard(item = item)
                     }
+                    item { Spacer(modifier = Modifier.height(4.dp)) }
                 }
             }
         }
@@ -169,121 +181,129 @@ fun NotificationsScreen(
 // -----------------------------------------------------------------------------
 
 @Composable
-private fun NotificationRow(item: ActivityFeedItem) {
+private fun NotificationCard(item: ActivityFeedItem) {
+    val avatarColor = AvatarColors[
+        kotlin.math.abs(item.actorId.hashCode()) % AvatarColors.size
+    ]
+
+    val activityIcon = when (item.activityType) {
+        "EXPENSE" -> Icons.Rounded.Receipt
+        "SETTLEMENT" -> Icons.Rounded.Handshake
+        "MEMBER_JOINED" -> Icons.Rounded.PersonAdd
+        else -> Icons.Rounded.Receipt
+    }
+
+    val activityLabel = when (item.activityType) {
+        "EXPENSE" -> "Expense"
+        "SETTLEMENT" -> "Settlement"
+        "MEMBER_JOINED" -> "New Member"
+        else -> "Activity"
+    }
+
+    val groupIcon = GroupIcon.entries.find { it.name == item.groupIcon } ?: GroupIcon.Group
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 12.dp),
-        verticalAlignment = Alignment.Top
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        // Avatar / icon
-        ActivityAvatar(actorName = item.actorName, activityType = item.activityType)
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        // Text block
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = buildNotificationText(item),
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+        // Avatar with activity badge
+        Box(modifier = Modifier.size(48.dp)) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(avatarColor),
+                contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = item.groupName,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Medium
-                )
-                Text(
-                    text = "·",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = TextSecondary
-                )
-                Text(
-                    text = relativeTime(item.createdAt),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = TextSecondary
+                if (!item.actorAvatarUrl.isNullOrBlank()) {
+                    AsyncImage(
+                        model = item.actorAvatarUrl,
+                        contentDescription = "${item.actorName}'s photo",
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Text(
+                        text = item.actorName.take(1).uppercase(),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp,
+                        color = Color.White
+                    )
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .size(20.dp)
+                    .align(Alignment.BottomEnd)
+                    .offset(x = 2.dp, y = 2.dp)
+                    .clip(CircleShape)
+                    .background(Amber)
+                    .border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = activityIcon,
+                    contentDescription = activityLabel,
+                    modifier = Modifier.size(11.dp),
+                    tint = Charcoal
                 )
             }
         }
 
-        // Amount badge (only for monetary events)
-        if (item.activityType == "EXPENSE" || item.activityType == "SETTLEMENT") {
+        Spacer(modifier = Modifier.width(12.dp))
+
+        // Text content
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = buildNotificationText(item),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = groupIcon.imageVector,
+                    contentDescription = null,
+                    modifier = Modifier.size(13.dp),
+                    tint = Amber
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = item.groupName,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                Text(
+                    text = " · ${relativeTime(item.createdAt)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    maxLines = 1
+                )
+            }
+        }
+
+        // Amount
+        if (item.amountCents > 0) {
             Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = formatAmount(item.amountCents, item.currency),
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = if (item.activityType == "SETTLEMENT")
-                    MaterialTheme.colorScheme.primary
-                else
-                    MaterialTheme.colorScheme.onSurface
-            )
-        }
-    }
-
-    // Divider
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(1.dp)
-            .background(BorderLight.copy(alpha = 0.5f))
-    )
-}
-
-@Composable
-private fun ActivityAvatar(actorName: String, activityType: String) {
-    val initials = actorName
-        .split(" ")
-        .filter { it.isNotBlank() }
-        .take(2)
-        .joinToString("") { it.first().uppercaseChar().toString() }
-
-    val colorIndex = actorName.hashCode().and(0x7fffffff) % AvatarColors.size
-    val avatarColor = AvatarColors[colorIndex]
-
-    val icon: ImageVector? = when (activityType) {
-        "SETTLEMENT"   -> Icons.Rounded.Handshake
-        "MEMBER_JOINED" -> Icons.Rounded.PersonAdd
-        else            -> null          // EXPENSE uses the initials avatar
-    }
-
-    Box(
-        modifier = Modifier
-            .size(40.dp)
-            .clip(CircleShape)
-            .background(
-                if (icon != null) MaterialTheme.colorScheme.surfaceVariant
-                else avatarColor.copy(alpha = 0.15f)
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        if (icon != null) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                modifier = Modifier.size(20.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        } else if (initials.isNotEmpty()) {
-            Text(
-                text = initials,
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = avatarColor
-            )
-        } else {
-            Icon(
-                imageVector = Icons.Rounded.Receipt,
-                contentDescription = null,
-                modifier = Modifier.size(20.dp),
-                tint = avatarColor
+                color = MaterialTheme.colorScheme.onBackground
             )
         }
     }
@@ -297,7 +317,6 @@ private fun buildNotificationText(item: ActivityFeedItem): String {
         "SETTLEMENT"    -> "$actor settled up"
         "MEMBER_JOINED" -> "$actor joined ${item.groupName}"
         else            -> {
-            // EXPENSE — include target context when available
             val target = item.targetName
             if (!target.isNullOrBlank()) "$actor paid for $target"
             else "$actor added \"${item.title}\""
@@ -321,6 +340,7 @@ private fun relativeTime(isoTimestamp: String): String {
                 .format(then)
         }
     } catch (e: Exception) {
-        Sentry.captureException(e);
-    } as String
+        Sentry.captureException(e)
+        ""
+    }
 }
