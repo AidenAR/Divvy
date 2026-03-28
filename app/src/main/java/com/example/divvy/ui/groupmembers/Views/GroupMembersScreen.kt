@@ -1,5 +1,6 @@
 package com.example.divvy.ui.groupmembers.Views
 
+import android.content.Intent
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -26,6 +27,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton

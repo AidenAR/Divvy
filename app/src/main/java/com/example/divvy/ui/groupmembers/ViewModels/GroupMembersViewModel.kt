@@ -76,6 +76,8 @@ class GroupMembersViewModel @AssistedInject constructor(
     )
 
     init {
+        _uiState.update { it.copy(inviteUrl = "divvy.app/join/$groupId") }
+
         viewModelScope.launch {
             memberRepository.refreshMembers(groupId)
         }
