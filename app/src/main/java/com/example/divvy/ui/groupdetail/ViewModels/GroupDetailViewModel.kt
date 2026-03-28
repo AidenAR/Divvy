@@ -2,7 +2,6 @@ package com.example.divvy.ui.groupdetail.ViewModels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.divvy.backend.ActivityRepository
 import com.example.divvy.backend.AuthRepository
 import com.example.divvy.backend.BalanceRepository
 import com.example.divvy.backend.ExpensesRepository
@@ -17,7 +16,6 @@ import com.example.divvy.models.Group
 import com.example.divvy.models.GroupExpense
 import com.example.divvy.models.GroupMember
 import com.example.divvy.models.MemberBalance
-import com.example.divvy.models.ProfileRow
 import com.example.divvy.models.SimplifiedPayment
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
@@ -52,9 +50,6 @@ data class GroupDetailUiState(
     val cadSimplifiedPayments: List<SimplifiedPayment> = emptyList(),
     val activity: List<ActivityItem> = emptyList(),
     val isLoading: Boolean = true,
-    val showManageSheet: Boolean = false,
-    val leftGroup: Boolean = false,
-    val deletedGroup: Boolean = false,
     val isCreator: Boolean = false,
     val currentMemberIds: Set<String> = emptySet(),
     /** Net balance converted to CAD for the summary card. Null while rates are loading. */
@@ -66,8 +61,7 @@ data class GroupDetailUiState(
     val convertToCad: Boolean = false,
     // Delegate states
     val settlement: SettlementState = SettlementState(),
-    val editGroup: EditGroupState = EditGroupState(),
-    val inviteMembers: InviteMembersState = InviteMembersState()
+    val editGroup: EditGroupState = EditGroupState()
 ) {
     // Convenience accessors so the UI doesn't need to know about delegates
     val expandedMemberId get() = settlement.expandedMemberId
@@ -79,10 +73,6 @@ data class GroupDetailUiState(
     val editName get() = editGroup.editName
     val editIcon get() = editGroup.editIcon
     val isSavingEdit get() = editGroup.isSaving
-    val showInviteSheet get() = inviteMembers.showSheet
-    val allProfiles get() = inviteMembers.allProfiles
-    val inviteSearchQuery get() = inviteMembers.searchQuery
-    val isAddingMember get() = inviteMembers.isAdding
 
     /** The grouped balances list to display after applying toggles */
     val displayedBalances: List<UserBalanceGroup> get() {
@@ -166,20 +156,6 @@ class GroupDetailViewModel @AssistedInject constructor(
         groupId = groupId,
         scope = viewModelScope,
         groupRepository = groupRepository
-    )
-
-    val inviteDelegate = InviteMembersDelegate(
-        groupId = groupId,
-        scope = viewModelScope,
-        memberRepository = memberRepository,
-        profilesRepository = profilesRepository,
-        onMemberAdded = { profileId ->
-            _uiState.update { it.copy(currentMemberIds = it.currentMemberIds + profileId) }
-            viewModelScope.launch {
-                groupRepository.refreshGroups()
-                activityRepository.refreshActivityFeed()
-            }
-        }
     )
 
     init {
@@ -336,11 +312,6 @@ class GroupDetailViewModel @AssistedInject constructor(
                 _uiState.update { it.copy(editGroup = s) }
             }
         }
-        viewModelScope.launch {
-            inviteDelegate.state.collect { s ->
-                _uiState.update { it.copy(inviteMembers = s) }
-            }
-        }
     }
 
     fun onToggleOnlyMine() = _uiState.update { it.copy(onlyMine = !it.onlyMine) }
@@ -353,45 +324,12 @@ class GroupDetailViewModel @AssistedInject constructor(
     fun onSettleAmountChange(value: String) = settlementDelegate.onSettleAmountChange(value)
     fun onConfirmSettle() = settlementDelegate.onConfirmSettle()
 
-    // --- Manage actions ---
-    fun onShowManageSheet() {
-        _uiState.update { it.copy(showManageSheet = true) }
-    }
-
-    fun onDismissManageSheet() {
-        _uiState.update { it.copy(showManageSheet = false) }
-    }
-
-    fun onLeaveGroup() {
-        viewModelScope.launch {
-            memberRepository.leaveGroup(groupId)
-            groupRepository.refreshGroups()
-            activityRepository.refreshActivityFeed()
-            _uiState.update { it.copy(leftGroup = true) }
-        }
-    }
-
-    fun onDeleteGroup() {
-        viewModelScope.launch {
-            groupRepository.deleteGroup(groupId)
-            groupRepository.refreshGroups()
-            activityRepository.refreshActivityFeed()
-            _uiState.update { it.copy(deletedGroup = true) }
-        }
-    }
-
     // --- Edit group (forwarded to delegate) ---
     fun onStartEdit() = editDelegate.onStartEdit(_uiState.value.group)
     fun onCancelEdit() = editDelegate.onCancelEdit()
     fun onEditNameChange(value: String) = editDelegate.onEditNameChange(value)
     fun onEditIconSelected(icon: GroupIcon) = editDelegate.onEditIconSelected(icon)
     fun onSaveEdit() = editDelegate.onSaveEdit()
-
-    // --- Invite members (forwarded to delegate) ---
-    fun onShowInviteSheet() = inviteDelegate.onShowSheet()
-    fun onDismissInviteSheet() = inviteDelegate.onDismissSheet()
-    fun onInviteSearchChange(value: String) = inviteDelegate.onSearchChange(value)
-    fun onInviteMember(profile: ProfileRow) = inviteDelegate.onInviteMember(profile)
 
     // --- Helpers ---
 

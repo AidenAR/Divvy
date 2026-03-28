@@ -15,6 +15,7 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
+import io.sentry.Sentry
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -124,19 +125,24 @@ class SplitByPercentageViewModel @AssistedInject constructor(
 
     private fun load() {
         viewModelScope.launch {
-            memberRepository.refreshMembers(groupId)
-            val groupMembers = memberRepository.getMembers(groupId).first()
-            val allMembers = mutableListOf(PercentageMember(myUserId, "You", MemberColors[0]))
-            groupMembers.forEachIndexed { i, gm ->
-                allMembers += PercentageMember(gm.userId, gm.name, MemberColors[(i + 1) % MemberColors.size])
-            }
-            val equalPct = String.format("%.1f", 100.0 / allMembers.size)
-            _uiState.update {
-                it.copy(
-                    members = allMembers,
-                    percentages = allMembers.associate { m -> m.id to equalPct },
-                    isLoading = false
-                )
+            try {
+                memberRepository.refreshMembers(groupId)
+                val groupMembers = memberRepository.getMembers(groupId).first()
+                val allMembers = mutableListOf(PercentageMember(myUserId, "You", MemberColors[0]))
+                groupMembers.filter { it.userId != myUserId }.forEachIndexed { i, gm ->
+                    allMembers += PercentageMember(gm.userId, gm.name, MemberColors[(i + 1) % MemberColors.size])
+                }
+                val equalPct = String.format("%.1f", 100.0 / allMembers.size)
+                _uiState.update {
+                    it.copy(
+                        members = allMembers,
+                        percentages = allMembers.associate { m -> m.id to equalPct },
+                        isLoading = false
+                    )
+                }
+            } catch (e: Exception) {
+                Sentry.captureException(e)
+                _uiState.update { it.copy(isLoading = false) }
             }
         }
     }
@@ -191,20 +197,25 @@ class SplitByPercentageViewModel @AssistedInject constructor(
         }
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true) }
-            expensesRepository.createExpenseWithSplits(
-                groupId = groupId,
-                description = state.description,
-                amountCents = amountCents,
-                currency = currency,
-                splitMethod = "PERCENTAGE",
-                paidByUserId = state.paidByUserId,
-                splits = splits
-            )
-            balanceRepository.refreshBalances(groupId)
-            groupRepository.refreshGroups()
-            activityRepository.refreshActivityFeed()
-            _uiState.update { it.copy(isSaving = false) }
-            _done.send(Unit)
+            try {
+                expensesRepository.createExpenseWithSplits(
+                    groupId = groupId,
+                    description = state.description,
+                    amountCents = amountCents,
+                    currency = currency,
+                    splitMethod = "PERCENTAGE",
+                    paidByUserId = state.paidByUserId,
+                    splits = splits
+                )
+                balanceRepository.refreshBalances(groupId)
+                groupRepository.refreshGroups()
+                activityRepository.refreshActivityFeed()
+                _uiState.update { it.copy(isSaving = false) }
+                _done.send(Unit)
+            } catch (e: Exception) {
+                Sentry.captureException(e)
+                _uiState.update { it.copy(isSaving = false) }
+            }
         }
     }
 }

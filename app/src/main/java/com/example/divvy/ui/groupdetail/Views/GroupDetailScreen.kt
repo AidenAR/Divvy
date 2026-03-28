@@ -29,12 +29,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -44,7 +40,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -59,19 +54,22 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material3.ModalBottomSheet
 import com.example.divvy.components.GroupIcon
 import com.example.divvy.models.ActivityItem
 import com.example.divvy.models.SimplifiedPayment
 import com.example.divvy.models.SupportedCurrency
 import com.example.divvy.models.formatAmount
+import com.example.divvy.ui.groupdetail.buildGroupInviteLink
 import com.example.divvy.ui.groupdetail.ViewModels.GroupDetailViewModel
 import com.example.divvy.ui.groupdetail.ViewModels.SettleMode
 import com.example.divvy.ui.groupdetail.ViewModels.UserBalanceGroup
@@ -90,20 +88,12 @@ fun GroupDetailScreen(
     onBack: () -> Unit,
     onLeaveGroup: () -> Unit,
     onAddExpense: () -> Unit,
+    onViewMembers: () -> Unit,
 ) {
     val viewModel: GroupDetailViewModel = hiltViewModel<GroupDetailViewModel, GroupDetailViewModel.Factory>(
         creationCallback = { factory -> factory.create(groupId) }
     )
     val uiState by viewModel.uiState.collectAsState()
-    @Suppress("DEPRECATION")
-    val clipboardManager = LocalClipboardManager.current
-
-    LaunchedEffect(uiState.leftGroup) {
-        if (uiState.leftGroup) onLeaveGroup()
-    }
-    LaunchedEffect(uiState.deletedGroup) {
-        if (uiState.deletedGroup) onLeaveGroup()
-    }
 
     Scaffold(
         topBar = {
@@ -119,15 +109,6 @@ fun GroupDetailScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back"
-                        )
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { viewModel.onShowManageSheet() }) {
-                        Icon(
-                            imageVector = Icons.Default.MoreVert,
-                            contentDescription = "Manage Group",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 },
@@ -161,7 +142,8 @@ fun GroupDetailScreen(
                         onEditNameChange = viewModel::onEditNameChange,
                         onEditIconSelected = viewModel::onEditIconSelected,
                         onSaveEdit = viewModel::onSaveEdit,
-                        onInviteMembers = viewModel::onShowInviteSheet
+                        memberCount = uiState.currentMemberIds.size,
+                        onViewMembers = onViewMembers
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                 }
@@ -298,32 +280,6 @@ fun GroupDetailScreen(
         }
     }
 
-    if (uiState.showInviteSheet) {
-        InviteMembersSheet(
-            profiles = uiState.allProfiles,
-            currentMemberIds = uiState.currentMemberIds,
-            searchQuery = uiState.inviteSearchQuery,
-            isAdding = uiState.isAddingMember,
-            onSearchChange = viewModel::onInviteSearchChange,
-            onInvite = viewModel::onInviteMember,
-            onDismiss = viewModel::onDismissInviteSheet
-        )
-    }
-
-    if (uiState.showManageSheet) {
-        ManageActionsSheet(
-            groupId = groupId,
-            groupName = uiState.group.name,
-            isCreator = uiState.isCreator,
-            onCopyLink = { url ->
-                clipboardManager.setText(AnnotatedString(url))
-                viewModel.onDismissManageSheet()
-            },
-            onLeaveGroup = viewModel::onLeaveGroup,
-            onDeleteGroup = viewModel::onDeleteGroup,
-            onDismiss = viewModel::onDismissManageSheet
-        )
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -338,7 +294,8 @@ private fun ManageGroupCard(
     onEditNameChange: (String) -> Unit,
     onEditIconSelected: (GroupIcon) -> Unit,
     onSaveEdit: () -> Unit,
-    onInviteMembers: () -> Unit
+    memberCount: Int,
+    onViewMembers: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -468,7 +425,7 @@ private fun ManageGroupCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(onClick = onInviteMembers)
+                .clickable(onClick = onViewMembers)
                 .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -480,7 +437,7 @@ private fun ManageGroupCard(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Default.PersonAdd,
+                    imageVector = Icons.Default.Groups,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(18.dp)
@@ -488,9 +445,16 @@ private fun ManageGroupCard(
             }
             Spacer(modifier = Modifier.width(12.dp))
             Text(
-                text = "Invite Members",
+                text = "$memberCount members",
                 style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onBackground
+                color = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.weight(1f)
+            )
+            Icon(
+                imageVector = Icons.Default.ArrowForward,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp)
             )
         }
     }
@@ -507,8 +471,7 @@ private fun ManageActionsSheet(
     onDeleteGroup: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    val encodedName = android.net.Uri.encode(groupName)
-    val inviteUrl = "divvy://join/$groupId?groupName=$encodedName"
+    val inviteUrl = buildGroupInviteLink(groupId, groupName)
     val sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     ModalBottomSheet(
@@ -727,7 +690,7 @@ private fun MemberBalanceGroupCard(
                 when {
                     isSettled -> "settled up"
                     isPositive -> "gets back"
-                    else -> "owes overall"
+                    else -> "you owe"
                 }
             } else {
                 when {
