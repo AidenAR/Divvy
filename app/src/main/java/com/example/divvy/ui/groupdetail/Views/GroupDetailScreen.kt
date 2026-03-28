@@ -30,6 +30,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material3.Card
@@ -1027,27 +1031,42 @@ private fun ActivityCard(item: ActivityItem) {
     val amount = formatAmount(item.amountCents, item.currency)
     val accentColor = if (item.paidByCurrentUser) PositiveGreen else NegativeRed
     val label = if (item.paidByCurrentUser) "you get back" else "you owe"
+    val borderColor = if (item.isPending) Color(0xFFE65100) else MaterialTheme.colorScheme.outline
+    val borderStyle = if (item.isPending) 2.dp else 1.dp
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(MaterialTheme.colorScheme.surface)
-            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
+            .border(borderStyle, borderColor, RoundedCornerShape(12.dp))
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.Top,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = item.title,
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onBackground
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = item.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                if (item.isPending) {
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Icon(
+                        imageVector = Icons.Filled.Schedule,
+                        contentDescription = "Pending sync",
+                        modifier = Modifier.size(14.dp),
+                        tint = Color(0xFFE65100)
+                    )
+                }
+            }
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "${item.dateLabel} · Paid by ${item.paidByLabel}",
+                text = if (item.isPending) "${item.dateLabel} · Pending sync"
+                       else "${item.dateLabel} · Paid by ${item.paidByLabel}",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = if (item.isPending) Color(0xFFE65100)
+                        else MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
 

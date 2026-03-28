@@ -5,6 +5,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import com.example.divvy.notifications.ExpenseNotificationService
+import com.example.divvy.offline.NetworkMonitor
+import com.example.divvy.offline.OfflineSyncManager
 import com.example.divvy.ui.MainScreen
 import com.example.divvy.ui.theme.DivvyTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -14,6 +16,8 @@ import javax.inject.Inject
 class MainActivity : ComponentActivity() {
 
     @Inject lateinit var expenseNotificationService: ExpenseNotificationService
+    @Inject lateinit var networkMonitor: NetworkMonitor
+    @Inject lateinit var syncManager: OfflineSyncManager
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
@@ -27,7 +31,7 @@ class MainActivity : ComponentActivity() {
         expenseNotificationService.start()
         setContent {
             DivvyTheme {
-                MainScreen()
+                MainScreen(networkMonitor, syncManager)
             }
         }
     }

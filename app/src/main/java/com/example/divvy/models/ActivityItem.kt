@@ -11,5 +11,6 @@ data class ActivityItem(
     val paidByLabel: String,     // e.g. "You", "Sarah"
     val paidByCurrentUser: Boolean,
     val timestamp: String,
-    val currency: String = "USD"
+    val currency: String = "USD",
+    val isPending: Boolean = false
 )

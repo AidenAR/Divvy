@@ -12,16 +12,16 @@ import com.example.divvy.backend.FriendsRepository
 import com.example.divvy.backend.GroupRepository
 import com.example.divvy.backend.MemberRepository
 import com.example.divvy.backend.ProfilesRepository
-import com.example.divvy.backend.SupabaseActivityRepository
 import com.example.divvy.backend.SupabaseAuthRepository
-import com.example.divvy.backend.SupabaseBalanceRepository
-import com.example.divvy.backend.SupabaseExpensesRepository
 import com.example.divvy.backend.SupabaseFriendsRepository
-import com.example.divvy.backend.SupabaseGroupRepository
-import com.example.divvy.backend.SupabaseMemberRepository
 import com.example.divvy.backend.DefaultStatementRepository
 import com.example.divvy.backend.StatementRepository
 import com.example.divvy.backend.SupabaseProfilesRepository
+import com.example.divvy.offline.repository.OfflineActivityRepository
+import com.example.divvy.offline.repository.OfflineBalanceRepository
+import com.example.divvy.offline.repository.OfflineExpensesRepository
+import com.example.divvy.offline.repository.OfflineGroupRepository
+import com.example.divvy.offline.repository.OfflineMemberRepository
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -32,12 +32,12 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 abstract class AppModule {
     @Binds @Singleton abstract fun bindAuthRepository(impl: SupabaseAuthRepository): AuthRepository
-    @Binds @Singleton abstract fun bindGroupRepository(impl: SupabaseGroupRepository): GroupRepository
-    @Binds @Singleton abstract fun bindMemberRepository(impl: SupabaseMemberRepository): MemberRepository
-    @Binds @Singleton abstract fun bindBalanceRepository(impl: SupabaseBalanceRepository): BalanceRepository
-    @Binds @Singleton abstract fun bindExpensesRepository(impl: SupabaseExpensesRepository): ExpensesRepository
+    @Binds @Singleton abstract fun bindGroupRepository(impl: OfflineGroupRepository): GroupRepository
+    @Binds @Singleton abstract fun bindMemberRepository(impl: OfflineMemberRepository): MemberRepository
+    @Binds @Singleton abstract fun bindBalanceRepository(impl: OfflineBalanceRepository): BalanceRepository
+    @Binds @Singleton abstract fun bindExpensesRepository(impl: OfflineExpensesRepository): ExpensesRepository
     @Binds @Singleton abstract fun bindProfilesRepository(impl: SupabaseProfilesRepository): ProfilesRepository
-    @Binds @Singleton abstract fun bindActivityRepository(impl: SupabaseActivityRepository): ActivityRepository
+    @Binds @Singleton abstract fun bindActivityRepository(impl: OfflineActivityRepository): ActivityRepository
     @Binds @Singleton abstract fun bindStatementRepository(impl: DefaultStatementRepository): StatementRepository
     @Binds @Singleton abstract fun bindFriendsRepository(impl: SupabaseFriendsRepository): FriendsRepository
     @Binds @Singleton abstract fun bindContactsRepository(impl: AndroidContactsRepository): ContactsRepository
