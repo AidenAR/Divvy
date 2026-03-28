@@ -313,6 +313,7 @@ fun GroupDetailScreen(
     if (uiState.showManageSheet) {
         ManageActionsSheet(
             groupId = groupId,
+            groupName = uiState.group.name,
             isCreator = uiState.isCreator,
             onCopyLink = { url ->
                 clipboardManager.setText(AnnotatedString(url))
@@ -499,13 +500,15 @@ private fun ManageGroupCard(
 @Composable
 private fun ManageActionsSheet(
     groupId: String,
+    groupName: String,
     isCreator: Boolean,
     onCopyLink: (String) -> Unit,
     onLeaveGroup: () -> Unit,
     onDeleteGroup: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    val inviteUrl = "divvy.app/join/$groupId"
+    val encodedName = android.net.Uri.encode(groupName)
+    val inviteUrl = "divvy://join/$groupId?groupName=$encodedName"
     val sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     ModalBottomSheet(
@@ -548,7 +551,7 @@ private fun ManageActionsSheet(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = inviteUrl,
+                        text = "divvy://join/${groupId.take(8)}…",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onBackground
                     )

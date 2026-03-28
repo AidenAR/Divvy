@@ -26,6 +26,9 @@ import com.example.divvy.ui.splitexpense.Views.SplitExpenseScreen
 import com.example.divvy.ui.statementimport.Views.StatementUploadScreen
 import com.example.divvy.ui.statementimport.Views.TransactionReviewScreen
 import com.example.divvy.ui.statementimport.ViewModels.TransactionReviewViewModel
+import androidx.navigation.navDeepLink
+import com.example.divvy.ui.joingroup.ViewModels.JoinGroupViewModel
+import com.example.divvy.ui.joingroup.Views.JoinGroupScreen
 
 @Composable
 fun AppNavHost(
@@ -234,6 +237,21 @@ fun AppNavHost(
                         route = AppDestination.Home,
                         inclusive = false
                     )
+                }
+            )
+        }
+        composable<AppDestination.JoinGroup>(
+            deepLinks = listOf(navDeepLink<AppDestination.JoinGroup>(basePath = "divvy://join"))
+        ) { backStack ->
+            val dest: AppDestination.JoinGroup = backStack.toRoute()
+            JoinGroupScreen(
+                groupId = dest.groupId,
+                groupName = dest.groupName,
+                onBack = { navController.popBackStack() },
+                onJoined = { id ->
+                    navController.navigate(AppDestination.GroupDetail(id)) {
+                        popUpTo(AppDestination.Home) { inclusive = false }
+                    }
                 }
             )
         }
