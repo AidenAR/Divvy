@@ -177,11 +177,6 @@ fun HomeScreen(
                             label = "Groups",
                             onClick = onGroupsClick
                         )
-                        QuickActionButton(
-                            icon = Icons.Rounded.History,
-                            label = "History",
-                            onClick = onLedgerClick
-                        )
                     }
                 }
             }
