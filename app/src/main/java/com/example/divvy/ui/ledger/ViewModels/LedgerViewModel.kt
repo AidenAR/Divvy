@@ -7,6 +7,7 @@ import com.example.divvy.backend.DataResult
 import com.example.divvy.backend.ExpensesRepository
 import com.example.divvy.backend.GroupRepository
 import com.example.divvy.backend.MemberRepository
+import com.example.divvy.backend.SettlementsRepository
 import com.example.divvy.models.Group
 import com.example.divvy.models.LedgerEntry
 import com.example.divvy.models.LedgerEntryType
@@ -68,7 +69,8 @@ class LedgerViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val groupRepository: GroupRepository,
     private val memberRepository: MemberRepository,
-    private val expensesRepository: ExpensesRepository
+    private val expensesRepository: ExpensesRepository,
+    private val settlementsRepository: SettlementsRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LedgerUiState())
@@ -102,27 +104,53 @@ class LedgerViewModel @Inject constructor(
                     }
                 }
 
-                val entries = allExpenses.map { expense ->
-                    val isSettlement = expense.title == "Settlement"
-                            && expense.splits.size == 1
-                    val toUserId = if (isSettlement) expense.splits.first().userId else ""
+                // Expenses (excluding any old "Settlement" expenses written before the fix)
+                val expenseEntries = allExpenses
+                    .filter { it.splitMethod != "SETTLEMENT" }
+                    .map { expense ->
+                        LedgerEntry(
+                            id = expense.id,
+                            type = LedgerEntryType.EXPENSE,
+                            title = expense.title,
+                            amountCents = expense.amountCents,
+                            groupId = expense.groupId,
+                            paidByUserId = expense.paidByUserId,
+                            dateLabel = dateLabel(expense.createdAt),
+                            groupName = groupNameMap[expense.groupId] ?: "",
+                            paidByName = memberNameMap[expense.paidByUserId] ?: "Unknown",
+                            paidByCurrentUser = expense.paidByUserId == myUserId,
+                            currency = expense.currency
+                        )
+                    }
 
-                    LedgerEntry(
-                        id = expense.id,
-                        type = if (isSettlement) LedgerEntryType.SETTLEMENT else LedgerEntryType.EXPENSE,
-                        title = expense.title,
-                        amountCents = expense.amountCents,
-                        groupId = expense.groupId,
-                        paidByUserId = expense.paidByUserId,
-                        dateLabel = dateLabel(expense.createdAt),
-                        toUserId = toUserId,
-                        groupName = groupNameMap[expense.groupId] ?: "",
-                        paidByName = memberNameMap[expense.paidByUserId] ?: "Unknown",
-                        toName = if (toUserId.isNotBlank()) memberNameMap[toUserId] ?: "Unknown" else "",
-                        paidByCurrentUser = expense.paidByUserId == myUserId,
-                        currency = expense.currency
-                    )
-                }.sortedByDescending { it.dateLabel }
+                // Settlements from the dedicated table
+                val allSettlements = try {
+                    settlementsRepository.listAllSettlements()
+                } catch (_: Exception) {
+                    emptyList()
+                }
+                val settlementEntries = allSettlements
+                    .filter { groupNameMap.containsKey(it.groupId) }
+                    .map { s ->
+                        LedgerEntry(
+                            id = s.id,
+                            type = LedgerEntryType.SETTLEMENT,
+                            title = "Settlement",
+                            amountCents = s.amountCents,
+                            groupId = s.groupId,
+                            paidByUserId = s.payerId,
+                            dateLabel = dateLabel(s.settledAt),
+                            toUserId = s.payeeId,
+                            groupName = groupNameMap[s.groupId] ?: "",
+                            paidByName = memberNameMap[s.payerId] ?: "Unknown",
+                            toName = memberNameMap[s.payeeId] ?: "Unknown",
+                            paidByCurrentUser = s.payerId == myUserId,
+                            currency = "USD"
+                        )
+                    }
+
+                val entries = (expenseEntries + settlementEntries)
+                    .sortedByDescending { it.dateLabel }
 
                 val currentState = _uiState.value
                 _uiState.value = currentState.copy(

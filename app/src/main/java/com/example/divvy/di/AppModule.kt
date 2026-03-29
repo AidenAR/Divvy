@@ -8,6 +8,8 @@ import com.example.divvy.backend.ContactsRepository
 import com.example.divvy.backend.ForexRepository
 import com.example.divvy.backend.FrankfurterForexRepository
 import com.example.divvy.backend.ExpensesRepository
+import com.example.divvy.backend.SettlementsRepository
+import com.example.divvy.backend.SupabaseSettlementsRepository
 import com.example.divvy.backend.FriendsRepository
 import com.example.divvy.backend.GroupRepository
 import com.example.divvy.backend.MemberRepository
@@ -42,4 +44,5 @@ abstract class AppModule {
     @Binds @Singleton abstract fun bindFriendsRepository(impl: SupabaseFriendsRepository): FriendsRepository
     @Binds @Singleton abstract fun bindContactsRepository(impl: AndroidContactsRepository): ContactsRepository
     @Binds @Singleton abstract fun bindForexRepository(impl: FrankfurterForexRepository): ForexRepository
+    @Binds @Singleton abstract fun bindSettlementsRepository(impl: SupabaseSettlementsRepository): SettlementsRepository
 }

@@ -8,6 +8,8 @@ import com.example.divvy.backend.ExpensesRepository
 import com.example.divvy.backend.ForexRepository
 import com.example.divvy.backend.GroupRepository
 import com.example.divvy.backend.MemberRepository
+import com.example.divvy.backend.ProfilesRepository
+import com.example.divvy.backend.SettlementsRepository
 import com.example.divvy.components.GroupIcon
 import com.example.divvy.models.ActivityItem
 import com.example.divvy.models.Group
@@ -110,6 +112,9 @@ class GroupDetailViewModel @AssistedInject constructor(
     private val memberRepository: MemberRepository,
     private val balanceRepository: BalanceRepository,
     private val expensesRepository: ExpensesRepository,
+    private val settlementsRepository: SettlementsRepository,
+    private val profilesRepository: ProfilesRepository,
+    private val activityRepository: ActivityRepository,
     private val forexRepository: ForexRepository
 ) : ViewModel() {
 
@@ -141,7 +146,7 @@ class GroupDetailViewModel @AssistedInject constructor(
         groupId = groupId,
         myUserId = myUserId,
         scope = viewModelScope,
-        expensesRepository = expensesRepository,
+        settlementsRepository = settlementsRepository,
         balanceRepository = balanceRepository,
         groupRepository = groupRepository,
         getMemberBalances = { _uiState.value.memberBalances }
