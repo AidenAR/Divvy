@@ -29,6 +29,11 @@ class OfflineMemberRepository @Inject constructor(
         refreshMembers(groupId)
     }
 
+    override suspend fun joinGroup(groupId: String) {
+        remote.joinGroup(groupId)
+        refreshMembers(groupId)
+    }
+
     override suspend fun leaveGroup(groupId: String) {
         remote.leaveGroup(groupId)
         memberDao.deleteByGroupId(groupId)
