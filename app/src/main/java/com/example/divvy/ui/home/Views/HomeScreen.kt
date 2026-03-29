@@ -173,11 +173,6 @@ fun HomeScreen(
                             onClick = onImportStatement
                         )
                         QuickActionButton(
-                            icon = Icons.Rounded.Handshake,
-                            label = "Settle Up",
-                            onClick = { /* Placeholder */ }
-                        )
-                        QuickActionButton(
                             icon = Icons.Rounded.Group,
                             label = "Groups",
                             onClick = onGroupsClick
