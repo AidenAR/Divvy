@@ -11,6 +11,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import io.sentry.android.core.SentryAndroid
 import io.sentry.SentryLevel
+import com.example.divvy.security.SanitizedTimberTree
 import timber.log.Timber
 import javax.inject.Inject
 
@@ -34,9 +35,9 @@ class DivvyApplication : Application(), Configuration.Provider {
         super.onCreate()
 
         if (BuildConfig.DEBUG) {
-            Timber.plant(Timber.DebugTree())
+            Timber.plant(SanitizedTimberTree(Timber.DebugTree()))
         }
-        Timber.plant(SentryTree())
+        Timber.plant(SanitizedTimberTree(SentryTree()))
 
         SentryAndroid.init(this) { options ->
             options.dsn = BuildConfig.SENTRY_DSN

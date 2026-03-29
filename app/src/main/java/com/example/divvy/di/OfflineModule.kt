@@ -11,11 +11,13 @@ import com.example.divvy.offline.db.dao.CachedExpenseSplitDao
 import com.example.divvy.offline.db.dao.CachedGroupDao
 import com.example.divvy.offline.db.dao.CachedMemberDao
 import com.example.divvy.offline.db.dao.PendingOperationDao
+import com.example.divvy.security.SQLCipherPassphraseProvider
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 import javax.inject.Singleton
 
 @Module
@@ -25,12 +27,18 @@ object OfflineModule {
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): DivvyDatabase {
+        System.loadLibrary("sqlcipher")
+        val passphrase = SQLCipherPassphraseProvider.getOrCreatePassphrase(context)
+        val factory = SupportOpenHelperFactory(passphrase)
         @Suppress("DEPRECATION")
         return Room.databaseBuilder(
             context,
             DivvyDatabase::class.java,
             "divvy_cache.db"
-        ).fallbackToDestructiveMigration().build()
+        )
+            .openHelperFactory(factory)
+            .fallbackToDestructiveMigration()
+            .build()
     }
 
     @Provides fun provideCachedGroupDao(db: DivvyDatabase): CachedGroupDao = db.cachedGroupDao()
