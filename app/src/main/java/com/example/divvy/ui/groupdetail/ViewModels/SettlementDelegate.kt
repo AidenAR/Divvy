@@ -1,8 +1,9 @@
 package com.example.divvy.ui.groupdetail.ViewModels
 
 import com.example.divvy.backend.BalanceRepository
+import com.example.divvy.backend.ExpensesRepository
 import com.example.divvy.backend.GroupRepository
-import com.example.divvy.backend.SettlementsRepository
+import com.example.divvy.models.ExpenseSplit
 import com.example.divvy.models.MemberBalance
 import com.example.divvy.models.SimplifiedPayment
 import kotlinx.coroutines.CoroutineScope
@@ -28,7 +29,7 @@ class SettlementDelegate(
     private val groupId: String,
     private val myUserId: String,
     private val scope: CoroutineScope,
-    private val settlementsRepository: SettlementsRepository,
+    private val expensesRepository: ExpensesRepository,
     private val balanceRepository: BalanceRepository,
     private val groupRepository: GroupRepository,
     private val getMemberBalances: () -> List<MemberBalance>
@@ -93,13 +94,15 @@ class SettlementDelegate(
 
         scope.launch {
             _state.update { it.copy(isSettling = true) }
-            settlementsRepository.createSettlement(
-                groupId     = groupId,
-                payerId     = fromUserId,
-                payeeId     = toUserId,
-                amountCents = amountCents
+            expensesRepository.createExpenseWithSplits(
+                groupId      = groupId,
+                description  = "Settlement",
+                amountCents  = amountCents,
+                currency     = s.currency,
+                splitMethod  = "SETTLEMENT",
+                paidByUserId = fromUserId,
+                splits       = listOf(ExpenseSplit(toUserId, amountCents))
             )
-            balanceRepository.clearCache(groupId)
             balanceRepository.refreshBalances(groupId)
             groupRepository.refreshGroups()
             _state.update { SettlementState() }
