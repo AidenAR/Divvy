@@ -13,8 +13,8 @@ class PushTokenRepository @Inject constructor(
     private val authRepository: AuthRepository
 ) {
     suspend fun syncToken() {
+        val userId = authRepository.getCurrentUserIdOrNull() ?: return
         val token = FirebaseMessaging.getInstance().token.await()
-        val userId = authRepository.getCurrentUserId()
         supabaseClient.postgrest["push_tokens"].upsert(
             mapOf("user_id" to userId, "token" to token)
         )
