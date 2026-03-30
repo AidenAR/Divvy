@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.divvy.backend.AuthRepository
 import com.example.divvy.backend.ContactsRepository
+import com.example.divvy.backend.ExpensesRepository
 import com.example.divvy.backend.ForexRepository
 import com.example.divvy.backend.FriendsRepository
 import com.example.divvy.backend.GroupRepository
@@ -78,7 +79,8 @@ class FriendsViewModel @Inject constructor(
     private val groupRepository: GroupRepository,
     private val memberRepository: MemberRepository,
     private val authRepository: AuthRepository,
-    private val forexRepository: ForexRepository
+    private val forexRepository: ForexRepository,
+    private val expensesRepository: ExpensesRepository
 ) : ViewModel() {
 
     private val fallbackRates = mapOf(
@@ -137,6 +139,8 @@ class FriendsViewModel @Inject constructor(
                 }
 
                 _uiState.update { it.copy(friendBalances = sortedBalances, friends = friends, friendCadBalances = cadBalances, isLoading = false) }
+                // Pre-fetch all expenses into the cache so FriendDetail loads instantly
+                viewModelScope.launch { runCatching { expensesRepository.refreshAllExpenses() } }
                 if (_uiState.value.hasContactsPermission) {
                     loadDeviceContacts()
                     mergeContactsOnDivvy()

@@ -46,6 +46,7 @@ class JoinGroupViewModel @AssistedInject constructor(
             _uiState.update { it.copy(isLoading = true, error = null) }
             try {
                 memberRepository.joinGroup(groupId)
+                groupRepository.invalidateCache()
                 groupRepository.refreshGroups()
                 _uiState.update { it.copy(isLoading = false, joined = true) }
             } catch (e: Exception) {

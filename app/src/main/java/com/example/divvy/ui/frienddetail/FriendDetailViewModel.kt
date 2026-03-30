@@ -140,8 +140,7 @@ class FriendDetailViewModel @AssistedInject constructor(
                 )
             }
 
-            // Fetch all expenses and build activity
-            expensesRepository.refreshAllExpenses()
+            // Show cached expenses immediately, then refresh in the background
             expensesRepository.observeAllGroupExpenses().collect { allExpenses ->
                 val activity = buildFriendActivity(allExpenses, groupInfoFromBalances)
                 _uiState.update {
