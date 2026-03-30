@@ -57,3 +57,8 @@ In Supabase Auth settings, enable Google and add `com.example.divvy://auth` as a
 - [Linear](https://linear.app/) for project management / issue tracking / prioritization
 - Figma for UI/UX mockup
 - Discord for communication
+
+
+## Acknowledgements
+
+Parts of this codebase were developed with assistance from Claude Code (Anthropic, claude-opus-4-6, 2026).
