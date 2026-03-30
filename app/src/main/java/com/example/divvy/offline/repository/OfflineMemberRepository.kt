@@ -7,6 +7,7 @@ import com.example.divvy.offline.NetworkMonitor
 import com.example.divvy.offline.db.dao.CachedMemberDao
 import com.example.divvy.offline.db.entity.CachedMemberEntity
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import timber.log.Timber
 import javax.inject.Inject
@@ -43,12 +44,9 @@ class OfflineMemberRepository @Inject constructor(
         if (!networkMonitor.isOnline.value) return
         try {
             remote.refreshMembers(groupId)
-            // Collect the latest from remote and cache
-            remote.getMembers(groupId).collect { members ->
-                memberDao.deleteByGroupId(groupId)
-                memberDao.insertAll(members.map { CachedMemberEntity(groupId, it.userId, it.name) })
-                return@collect
-            }
+            val members = remote.getMembers(groupId).first()
+            memberDao.deleteByGroupId(groupId)
+            memberDao.insertAll(members.map { CachedMemberEntity(groupId, it.userId, it.name) })
         } catch (e: Exception) {
             Timber.w(e, "Failed to refresh members for group $groupId")
         }
