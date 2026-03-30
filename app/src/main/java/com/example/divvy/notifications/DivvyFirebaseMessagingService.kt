@@ -33,14 +33,10 @@ class DivvyFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     // Called when FCM rotates the token — re-sync it to Supabase.
-    // onNewToken can fire before the user has signed in (e.g. fresh install),
-    // so we guard against the no-auth case. The token will be synced when the
-    // user next authenticates via AuthActivity.
+    // This is best-effort and intentionally non-fatal.
     override fun onNewToken(token: String) {
         scope.launch {
-            try {
-                pushTokenRepository.syncToken()
-            } catch (_: IllegalStateException) { /* no authenticated user yet */ }
+            pushTokenRepository.syncToken(token)
         }
     }
 }
