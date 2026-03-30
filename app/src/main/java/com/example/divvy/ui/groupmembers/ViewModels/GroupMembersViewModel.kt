@@ -117,6 +117,7 @@ class GroupMembersViewModel @AssistedInject constructor(
     fun onLeaveGroup() {
         viewModelScope.launch {
             memberRepository.leaveGroup(groupId)
+            groupRepository.invalidateCache()
             groupRepository.refreshGroups()
             activityRepository.refreshActivityFeed()
             _uiState.update { it.copy(leftGroup = true) }

@@ -55,12 +55,19 @@ class OfflineGroupRepository @Inject constructor(
 
     override suspend fun updateGroup(groupId: String, name: String, icon: GroupIcon) {
         remote.updateGroup(groupId, name, icon)
+        groupDao.updateNameAndIcon(groupId, name, icon.name)
+        invalidateCache()
         refreshGroups()
     }
 
     override suspend fun deleteGroup(groupId: String) {
         remote.deleteGroup(groupId)
+        groupDao.deleteById(groupId)
         refreshGroups()
+    }
+
+    override fun invalidateCache() {
+        remote.invalidateCache()
     }
 
     override suspend fun refreshGroups() {
