@@ -19,6 +19,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
@@ -235,6 +236,10 @@ class OfflineExpensesRepository @Inject constructor(
         if (!networkMonitor.isOnline.value) return
         try {
             remote.refreshAllExpenses()
+            val allExpenses = remote.observeAllGroupExpenses().first()
+            for ((groupId, expenses) in allExpenses.groupBy { it.groupId }) {
+                cacheExpenses(groupId, expenses)
+            }
         } catch (e: Exception) {
             Timber.w(e, "Failed to refresh all expenses")
         }
