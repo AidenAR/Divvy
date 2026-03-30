@@ -501,6 +501,7 @@ class AssignItemsViewModel @AssistedInject constructor(
                 } catch (e: Exception) {
                     Sentry.captureException(e)
                 }
+                balanceRepository.clearCache(groupId)
                 balanceRepository.refreshBalances(groupId)
                 expensesRepository.refreshGroupExpenses(groupId)
                 groupRepository.refreshGroups()
