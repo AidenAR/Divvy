@@ -66,6 +66,12 @@ class GroupsViewModel @Inject constructor(
         }
     }
 
+    fun refresh() {
+        viewModelScope.launch {
+            groupRepository.refreshGroups()
+        }
+    }
+
     fun onRetry() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
