@@ -212,22 +212,22 @@ private fun ManageGroupCard(
                 modifier = Modifier.weight(1f)
             )
         }
-        Spacer(modifier = Modifier.height(10.dp))
-        Row {
-            Text(
-                text = "${group.memberCount} members",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            val balanceLabel = if (group.balanceCents >= 0) "you are owed" else "you owe"
-            val balanceValue = group.formattedBalance
-            Text(
-                text = "$balanceValue • $balanceLabel",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+//        Spacer(modifier = Modifier.height(10.dp))
+//        Row {
+//            Text(
+//                text = "${group.memberCount} members",
+//                style = MaterialTheme.typography.bodySmall,
+//                color = MaterialTheme.colorScheme.onSurfaceVariant
+//            )
+//            Spacer(modifier = Modifier.width(12.dp))
+//            val balanceLabel = if (group.balanceCents >= 0) "you are owed" else "you owe"
+//            val balanceValue = group.formattedBalance
+//            Text(
+//                text = "$balanceValue • $balanceLabel",
+//                style = MaterialTheme.typography.bodySmall,
+//                color = MaterialTheme.colorScheme.onSurfaceVariant
+//            )
+//        }
     }
 }
 
