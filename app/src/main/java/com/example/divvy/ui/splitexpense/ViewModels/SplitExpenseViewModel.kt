@@ -380,6 +380,7 @@ class SplitExpenseViewModel @Inject constructor(
                     paidByUserId = state.paidByUserId,
                     splits = splits
                 )
+                balanceRepository.clearCache(groupId)
                 balanceRepository.refreshBalances(groupId)
                 expensesRepository.refreshGroupExpenses(groupId)
                 groupRepository.refreshGroups()

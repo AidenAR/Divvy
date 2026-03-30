@@ -107,6 +107,7 @@ class SettlementDelegate(
             )
             balanceRepository.clearCache(groupId)
             balanceRepository.refreshBalances(groupId)
+            expensesRepository.refreshGroupExpenses(groupId)
             groupRepository.refreshGroups()
             runCatching { friendsRepository.getFriendsBalances() }
             _state.update { SettlementState() }

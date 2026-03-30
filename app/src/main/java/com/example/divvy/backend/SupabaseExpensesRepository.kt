@@ -64,7 +64,8 @@ class SupabaseExpensesRepository @Inject constructor(
             amountCents = expense.amountCents,
             paidByUserId = expense.paidByUserId,
             splits = splits,
-            createdAt = expense.createdAt
+            createdAt = expense.createdAt,
+            currency = expense.currency
         )
     }
 
