@@ -9,6 +9,7 @@ import javax.inject.Singleton
 
 interface AuthRepository {
     fun getCurrentUserId(): String
+    fun getCurrentUserIdOrNull(): String?
 }
 
 @Singleton
@@ -20,4 +21,8 @@ class SupabaseAuthRepository @Inject constructor(
         if (BuildConfig.AUTH_BYPASS) DummyAccount.USER_ID
         else supabaseClient.auth.currentUserOrNull()?.id
             ?: error("No authenticated user")
+
+    override fun getCurrentUserIdOrNull(): String? =
+        if (BuildConfig.AUTH_BYPASS) DummyAccount.USER_ID
+        else supabaseClient.auth.currentUserOrNull()?.id
 }

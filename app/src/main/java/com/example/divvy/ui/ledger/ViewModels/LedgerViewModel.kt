@@ -86,21 +86,31 @@ class LedgerViewModel @Inject constructor(
             ) { groupsResult, allExpenses ->
                 groupsResult to allExpenses
             }.collect { (groupsResult, allExpenses) ->
-                val groups = (groupsResult as? DataResult.Success)?.data ?: return@collect
+                when (groupsResult) {
+                    is DataResult.Loading -> return@collect
+                    is DataResult.Error -> {
+                        _uiState.update { it.copy(isLoading = false) }
+                        return@collect
+                    }
+                    is DataResult.Success -> {}
+                }
+                val groups = groupsResult.data
                 val groupNameMap = groups.associate { it.id to it.name }
 
                 val memberNameMap = mutableMapOf<String, String>()
                 memberNameMap[myUserId] = "You"
-                coroutineScope {
-                    groups.map { group ->
-                        async {
-                            memberRepository.refreshMembers(group.id)
-                            memberRepository.getMembers(group.id).first()
+                try {
+                    coroutineScope {
+                        groups.map { group ->
+                            async {
+                                memberRepository.refreshMembers(group.id)
+                                memberRepository.getMembers(group.id).first()
+                            }
+                        }.awaitAll().flatten().forEach { member ->
+                            memberNameMap[member.userId] = member.name
                         }
-                    }.awaitAll().flatten().forEach { member ->
-                        memberNameMap[member.userId] = member.name
                     }
-                }
+                } catch (_: Exception) { }
 
                 val entries = allExpenses.map { expense ->
                     val isSettlement = expense.title == "Settlement"
