@@ -9,8 +9,13 @@ import com.example.divvy.models.Group
 import com.example.divvy.offline.NetworkMonitor
 import com.example.divvy.offline.db.dao.CachedGroupDao
 import com.example.divvy.offline.db.entity.CachedGroupEntity
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import timber.log.Timber
@@ -24,7 +29,12 @@ class OfflineGroupRepository @Inject constructor(
     private val networkMonitor: NetworkMonitor
 ) : GroupRepository {
 
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val json = Json { ignoreUnknownKeys = true }
+
+    init {
+        scope.launch { refreshGroups() }
+    }
 
     override fun listGroups(): Flow<DataResult<List<Group>>> =
         groupDao.getAll().map { entities ->
@@ -57,14 +67,11 @@ class OfflineGroupRepository @Inject constructor(
         if (!networkMonitor.isOnline.value) return
         try {
             remote.refreshGroups()
-            // Collect the latest value from remote
-            remote.listGroups().collect { dataResult ->
-                if (dataResult is DataResult.Success) {
-                    val entities = dataResult.data.map { it.toEntity() }
-                    groupDao.deleteAll()
-                    groupDao.insertAll(entities)
-                }
-                return@collect
+            val dataResult = remote.listGroups().first()
+            if (dataResult is DataResult.Success) {
+                val entities = dataResult.data.map { it.toEntity() }
+                groupDao.deleteAll()
+                groupDao.insertAll(entities)
             }
         } catch (e: Exception) {
             Timber.w(e, "Failed to refresh groups from remote")

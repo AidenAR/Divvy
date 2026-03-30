@@ -8,6 +8,7 @@ import com.example.divvy.offline.NetworkMonitor
 import com.example.divvy.offline.db.dao.CachedActivityDao
 import com.example.divvy.offline.db.entity.CachedActivityEntity
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import timber.log.Timber
 import javax.inject.Inject
@@ -30,13 +31,10 @@ class OfflineActivityRepository @Inject constructor(
         if (!networkMonitor.isOnline.value) return
         try {
             remote.refreshActivityFeed()
-            // Collect the latest from remote and cache
-            remote.getGlobalActivityFeed().collect { result ->
-                if (result is DataResult.Success) {
-                    activityDao.deleteAll()
-                    activityDao.insertAll(result.data.map { it.toEntity() })
-                }
-                return@collect
+            val result = remote.getGlobalActivityFeed().first()
+            if (result is DataResult.Success) {
+                activityDao.deleteAll()
+                activityDao.insertAll(result.data.map { it.toEntity() })
             }
         } catch (e: Exception) {
             Timber.w(e, "Failed to refresh activity feed")

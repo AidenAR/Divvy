@@ -24,17 +24,25 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object OfflineModule {
 
+    private const val OLD_DB_NAME = "divvy_cache.db"
+    private const val ENCRYPTED_DB_NAME = "divvy_cache_encrypted.db"
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): DivvyDatabase {
         System.loadLibrary("sqlcipher")
+
+        // Remove the pre-encryption plaintext cache so no unencrypted data lingers on disk.
+        // This is a no-op once the old file is gone.
+        context.deleteDatabase(OLD_DB_NAME)
+
         val passphrase = SQLCipherPassphraseProvider.getOrCreatePassphrase(context)
         val factory = SupportOpenHelperFactory(passphrase)
         @Suppress("DEPRECATION")
         return Room.databaseBuilder(
             context,
             DivvyDatabase::class.java,
-            "divvy_cache.db"
+            ENCRYPTED_DB_NAME
         )
             .openHelperFactory(factory)
             .fallbackToDestructiveMigration()
