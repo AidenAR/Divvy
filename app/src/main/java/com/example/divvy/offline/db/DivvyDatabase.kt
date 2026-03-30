@@ -5,6 +5,7 @@ import androidx.room.RoomDatabase
 import com.example.divvy.offline.db.dao.CachedActivityDao
 import com.example.divvy.offline.db.dao.CachedBalanceDao
 import com.example.divvy.offline.db.dao.CachedExpenseDao
+import com.example.divvy.offline.db.dao.CachedFriendBalanceDao
 import com.example.divvy.offline.db.dao.CachedExpenseSplitDao
 import com.example.divvy.offline.db.dao.CachedGroupDao
 import com.example.divvy.offline.db.dao.CachedMemberDao
@@ -12,6 +13,7 @@ import com.example.divvy.offline.db.dao.PendingOperationDao
 import com.example.divvy.offline.db.entity.CachedActivityEntity
 import com.example.divvy.offline.db.entity.CachedBalanceEntity
 import com.example.divvy.offline.db.entity.CachedExpenseEntity
+import com.example.divvy.offline.db.entity.CachedFriendBalanceEntity
 import com.example.divvy.offline.db.entity.CachedExpenseSplitEntity
 import com.example.divvy.offline.db.entity.CachedGroupEntity
 import com.example.divvy.offline.db.entity.CachedMemberEntity
@@ -25,9 +27,10 @@ import com.example.divvy.offline.db.entity.PendingOperationEntity
         CachedMemberEntity::class,
         CachedBalanceEntity::class,
         CachedActivityEntity::class,
+        CachedFriendBalanceEntity::class,
         PendingOperationEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class DivvyDatabase : RoomDatabase() {
@@ -37,5 +40,6 @@ abstract class DivvyDatabase : RoomDatabase() {
     abstract fun cachedMemberDao(): CachedMemberDao
     abstract fun cachedBalanceDao(): CachedBalanceDao
     abstract fun cachedActivityDao(): CachedActivityDao
+    abstract fun cachedFriendBalanceDao(): CachedFriendBalanceDao
     abstract fun pendingOperationDao(): PendingOperationDao
 }

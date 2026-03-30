@@ -7,6 +7,7 @@ import com.example.divvy.offline.db.DivvyDatabase
 import com.example.divvy.offline.db.dao.CachedActivityDao
 import com.example.divvy.offline.db.dao.CachedBalanceDao
 import com.example.divvy.offline.db.dao.CachedExpenseDao
+import com.example.divvy.offline.db.dao.CachedFriendBalanceDao
 import com.example.divvy.offline.db.dao.CachedExpenseSplitDao
 import com.example.divvy.offline.db.dao.CachedGroupDao
 import com.example.divvy.offline.db.dao.CachedMemberDao
@@ -55,6 +56,7 @@ object OfflineModule {
     @Provides fun provideCachedMemberDao(db: DivvyDatabase): CachedMemberDao = db.cachedMemberDao()
     @Provides fun provideCachedBalanceDao(db: DivvyDatabase): CachedBalanceDao = db.cachedBalanceDao()
     @Provides fun provideCachedActivityDao(db: DivvyDatabase): CachedActivityDao = db.cachedActivityDao()
+    @Provides fun provideCachedFriendBalanceDao(db: DivvyDatabase): CachedFriendBalanceDao = db.cachedFriendBalanceDao()
     @Provides fun providePendingOperationDao(db: DivvyDatabase): PendingOperationDao = db.pendingOperationDao()
 
     @Provides
