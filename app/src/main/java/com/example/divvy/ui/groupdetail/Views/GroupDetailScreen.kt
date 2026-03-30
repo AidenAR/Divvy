@@ -518,7 +518,7 @@ private fun ManageActionsSheet(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = "divvy://join/${groupId.take(8)}…",
+                        text = "Invite link",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onBackground
                     )

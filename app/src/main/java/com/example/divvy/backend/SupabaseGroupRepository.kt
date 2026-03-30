@@ -167,6 +167,10 @@ class SupabaseGroupRepository @Inject constructor(
         }
     }
 
+    override fun invalidateCache() {
+        _lastRefreshMs = 0L
+    }
+
     private fun iconFromName(name: String): GroupIcon =
         GroupIcon.entries.find { it.name == name } ?: GroupIcon.Group
 }
