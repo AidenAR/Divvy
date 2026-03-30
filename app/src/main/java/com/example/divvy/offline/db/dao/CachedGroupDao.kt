@@ -18,6 +18,12 @@ interface CachedGroupDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(groups: List<CachedGroupEntity>)
 
+    @Query("UPDATE cached_groups SET name = :name, icon = :icon WHERE id = :groupId")
+    suspend fun updateNameAndIcon(groupId: String, name: String, icon: String)
+
+    @Query("DELETE FROM cached_groups WHERE id = :groupId")
+    suspend fun deleteById(groupId: String)
+
     @Query("DELETE FROM cached_groups")
     suspend fun deleteAll()
 

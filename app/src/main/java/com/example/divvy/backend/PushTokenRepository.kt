@@ -28,10 +28,7 @@ class PushTokenRepository @Inject constructor(
             return false
         }
 
-        val userId = runCatching { authRepository.getCurrentUserId() }.getOrElse {
-            // No authenticated user yet (fresh install / signed-out state).
-            return false
-        }
+        val userId = authRepository.getCurrentUserIdOrNull() ?: return false
 
         return upsertToken(userId, token, allowSessionRefreshRetry = true)
     }

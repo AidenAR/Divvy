@@ -26,13 +26,20 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Start the Realtime subscription now that the user is authenticated.
-        // stop() is called from ProfileViewModel.signOut() to close the socket cleanly.
-        expenseNotificationService.start()
         setContent {
             DivvyTheme {
                 MainScreen(networkMonitor, syncManager)
             }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        expenseNotificationService.start()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        expenseNotificationService.stop()
     }
 }

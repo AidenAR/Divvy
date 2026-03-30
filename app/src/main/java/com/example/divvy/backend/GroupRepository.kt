@@ -16,6 +16,7 @@ interface GroupRepository {
     suspend fun updateGroup(groupId: String, name: String, icon: GroupIcon)
     suspend fun deleteGroup(groupId: String)
     suspend fun refreshGroups()
+    fun invalidateCache()
 }
 
 class StubGroupRepository @Inject constructor() : GroupRepository {
@@ -61,4 +62,5 @@ class StubGroupRepository @Inject constructor() : GroupRepository {
     }
 
     override suspend fun refreshGroups() { /* no-op for stub */ }
+    override fun invalidateCache() { /* no-op for stub */ }
 }
