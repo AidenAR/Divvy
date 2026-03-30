@@ -61,6 +61,7 @@ import com.example.divvy.ui.theme.Charcoal
 import com.example.divvy.ui.theme.TextSecondary
 import io.sentry.Sentry
 import java.time.Instant
+import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
@@ -326,7 +327,12 @@ private fun buildNotificationText(item: ActivityFeedItem): String {
 
 private fun relativeTime(isoTimestamp: String): String {
     return try {
-        val then = Instant.parse(isoTimestamp)
+        val normalized = isoTimestamp.trim().replace(" ", "T")
+        val then = try {
+            Instant.parse(normalized)
+        } catch (_: Exception) {
+            OffsetDateTime.parse(normalized).toInstant()
+        }
         val now = Instant.now()
         val minutes = ChronoUnit.MINUTES.between(then, now)
         when {
