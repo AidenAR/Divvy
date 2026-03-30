@@ -39,7 +39,6 @@ class OfflineExpensesRepository @Inject constructor(
 ) : ExpensesRepository {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-
     private val json = Json { ignoreUnknownKeys = true }
 
     init {

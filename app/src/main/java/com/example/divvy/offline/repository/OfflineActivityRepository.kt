@@ -31,7 +31,6 @@ class OfflineActivityRepository @Inject constructor(
         if (!networkMonitor.isOnline.value) return
         try {
             remote.refreshActivityFeed()
-            // Collect the latest from remote and cache
             val result = remote.getGlobalActivityFeed().first()
             if (result is DataResult.Success) {
                 activityDao.deleteAll()

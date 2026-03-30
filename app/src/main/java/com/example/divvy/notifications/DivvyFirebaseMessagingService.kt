@@ -32,8 +32,11 @@ class DivvyFirebaseMessagingService : FirebaseMessagingService() {
         }
     }
 
-    // Called when FCM rotates the token — re-sync it to Supabase
+    // Called when FCM rotates the token — re-sync it to Supabase.
+    // This is best-effort and intentionally non-fatal.
     override fun onNewToken(token: String) {
-        scope.launch { pushTokenRepository.syncToken() }
+        scope.launch {
+            pushTokenRepository.syncToken(token)
+        }
     }
 }

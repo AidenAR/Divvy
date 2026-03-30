@@ -11,26 +11,42 @@ import com.example.divvy.offline.db.dao.CachedExpenseSplitDao
 import com.example.divvy.offline.db.dao.CachedGroupDao
 import com.example.divvy.offline.db.dao.CachedMemberDao
 import com.example.divvy.offline.db.dao.PendingOperationDao
+import com.example.divvy.security.SQLCipherPassphraseProvider
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
 object OfflineModule {
 
+    private const val OLD_DB_NAME = "divvy_cache.db"
+    private const val ENCRYPTED_DB_NAME = "divvy_cache_encrypted.db"
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): DivvyDatabase {
+        System.loadLibrary("sqlcipher")
+
+        // Remove the pre-encryption plaintext cache so no unencrypted data lingers on disk.
+        // This is a no-op once the old file is gone.
+        context.deleteDatabase(OLD_DB_NAME)
+
+        val passphrase = SQLCipherPassphraseProvider.getOrCreatePassphrase(context)
+        val factory = SupportOpenHelperFactory(passphrase)
         @Suppress("DEPRECATION")
         return Room.databaseBuilder(
             context,
             DivvyDatabase::class.java,
-            "divvy_cache.db"
-        ).fallbackToDestructiveMigration().build()
+            ENCRYPTED_DB_NAME
+        )
+            .openHelperFactory(factory)
+            .fallbackToDestructiveMigration()
+            .build()
     }
 
     @Provides fun provideCachedGroupDao(db: DivvyDatabase): CachedGroupDao = db.cachedGroupDao()

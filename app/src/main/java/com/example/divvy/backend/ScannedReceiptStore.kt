@@ -1,91 +1,88 @@
 package com.example.divvy.backend
 
 import android.content.Context
-import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
+import android.content.SharedPreferences
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKeys
 import com.example.divvy.models.ParsedReceipt
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
 
-private val Context.receiptDataStore by preferencesDataStore(name = "scanned_receipt")
-
 @Singleton
 class ScannedReceiptStore @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     private val json = Json { ignoreUnknownKeys = true }
-    private val receiptKey = stringPreferencesKey("receipt_json")
+    private val receiptKey = "receipt_json"
+
+    private val encryptedPrefs: SharedPreferences by lazy {
+        val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
+        EncryptedSharedPreferences.create(
+            "scanned_receipt_encrypted",
+            masterKeyAlias,
+            context,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+    }
 
     private var _receipt: ParsedReceipt? = null
 
     fun store(receipt: ParsedReceipt) {
         _receipt = receipt
-        persistToDataStore(receipt)
+        persistToPrefs(receipt)
     }
 
     fun peek(): ParsedReceipt? {
         if (_receipt != null) return _receipt
-        // Recover from DataStore if in-memory is null (e.g., after process death)
-        _receipt = readFromDataStore()
+        _receipt = readFromPrefs()
         return _receipt
     }
 
     fun consume(): ParsedReceipt? {
         val receipt = peek()
         _receipt = null
-        clearDataStore()
+        clearPrefs()
         return receipt
     }
 
     fun clear() {
         _receipt = null
-        clearDataStore()
+        clearPrefs()
     }
 
-    private fun persistToDataStore(receipt: ParsedReceipt) {
+    private fun persistToPrefs(receipt: ParsedReceipt) {
         try {
-            runBlocking {
-                context.receiptDataStore.edit { prefs ->
-                    prefs[receiptKey] = json.encodeToString(receipt)
-                }
-            }
+            encryptedPrefs.edit()
+                .putString(receiptKey, json.encodeToString(receipt))
+                .apply()
         } catch (e: Exception) {
-            Timber.w(e, "Failed to persist receipt to DataStore")
+            Timber.w(e, "Failed to persist receipt")
         }
     }
 
-    private fun readFromDataStore(): ParsedReceipt? {
+    private fun readFromPrefs(): ParsedReceipt? {
         return try {
-            runBlocking {
-                context.receiptDataStore.data.map { prefs ->
-                    prefs[receiptKey]?.let { jsonStr ->
-                        json.decodeFromString<ParsedReceipt>(jsonStr)
-                    }
-                }.first()
+            encryptedPrefs.getString(receiptKey, null)?.let { jsonStr ->
+                json.decodeFromString<ParsedReceipt>(jsonStr)
             }
         } catch (e: Exception) {
-            Timber.w(e, "Failed to read receipt from DataStore")
+            Timber.w(e, "Failed to read receipt")
             null
         }
     }
 
-    private fun clearDataStore() {
+    private fun clearPrefs() {
         try {
-            runBlocking {
-                context.receiptDataStore.edit { prefs ->
-                    prefs.remove(receiptKey)
-                }
-            }
+            encryptedPrefs.edit()
+                .remove(receiptKey)
+                .apply()
         } catch (e: Exception) {
-            Timber.w(e, "Failed to clear receipt from DataStore")
+            Timber.w(e, "Failed to clear receipt")
         }
     }
 }
