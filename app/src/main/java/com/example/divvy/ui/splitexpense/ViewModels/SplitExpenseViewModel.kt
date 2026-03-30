@@ -8,6 +8,7 @@ import com.example.divvy.backend.AuthRepository
 import com.example.divvy.backend.BalanceRepository
 import com.example.divvy.backend.DataResult
 import com.example.divvy.backend.ExpensesRepository
+import com.example.divvy.backend.FriendsRepository
 import com.example.divvy.backend.GroupRepository
 import com.example.divvy.backend.MemberRepository
 import com.example.divvy.backend.ProfilesRepository
@@ -102,7 +103,8 @@ class SplitExpenseViewModel @Inject constructor(
     private val expensesRepository: ExpensesRepository,
     private val balanceRepository: BalanceRepository,
     private val activityRepository: ActivityRepository,
-    private val profilesRepository: ProfilesRepository
+    private val profilesRepository: ProfilesRepository,
+    private val friendsRepository: FriendsRepository
 ) : ViewModel() {
 
     private val scannedAmount: String = savedStateHandle["scannedAmount"] ?: ""
@@ -382,6 +384,7 @@ class SplitExpenseViewModel @Inject constructor(
                 expensesRepository.refreshGroupExpenses(groupId)
                 groupRepository.refreshGroups()
                 activityRepository.refreshActivityFeed()
+                runCatching { friendsRepository.getFriendsBalances() }
                 _uiState.update { it.copy(isCreating = false) }
                 _events.send(SplitEvent.Created)
             } catch (e: Exception) {

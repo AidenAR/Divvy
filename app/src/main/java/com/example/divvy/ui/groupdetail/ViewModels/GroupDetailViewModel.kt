@@ -6,6 +6,7 @@ import com.example.divvy.backend.AuthRepository
 import com.example.divvy.backend.BalanceRepository
 import com.example.divvy.backend.ExpensesRepository
 import com.example.divvy.backend.ForexRepository
+import com.example.divvy.backend.FriendsRepository
 import com.example.divvy.backend.GroupRepository
 import com.example.divvy.backend.MemberRepository
 import com.example.divvy.components.GroupIcon
@@ -110,7 +111,8 @@ class GroupDetailViewModel @AssistedInject constructor(
     private val memberRepository: MemberRepository,
     private val balanceRepository: BalanceRepository,
     private val expensesRepository: ExpensesRepository,
-    private val forexRepository: ForexRepository
+    private val forexRepository: ForexRepository,
+    private val friendsRepository: FriendsRepository
 ) : ViewModel() {
 
     @AssistedFactory
@@ -144,6 +146,7 @@ class GroupDetailViewModel @AssistedInject constructor(
         expensesRepository = expensesRepository,
         balanceRepository = balanceRepository,
         groupRepository = groupRepository,
+        friendsRepository = friendsRepository,
         getMemberBalances = { _uiState.value.memberBalances }
     )
 
@@ -313,8 +316,10 @@ class GroupDetailViewModel @AssistedInject constructor(
     fun onToggleConvertToCad() = _uiState.update { it.copy(convertToCad = !it.convertToCad) }
 
     // --- Settlement (forwarded to delegate) ---
-    fun onMemberClick(userId: String, currency: String) =
-        settlementDelegate.onMemberClick(userId, currency, _uiState.value.simplifiedPayments)
+    fun onMemberClick(userId: String, currency: String) {
+        val payments = if (_uiState.value.convertToCad) _uiState.value.cadSimplifiedPayments else _uiState.value.simplifiedPayments
+        settlementDelegate.onMemberClick(userId, currency, payments)
+    }
     fun onSettleModeSelected(mode: SettleMode, currency: String = "USD") = settlementDelegate.onSettleModeSelected(mode, currency)
     fun onSettleAmountChange(value: String) = settlementDelegate.onSettleAmountChange(value)
     fun onConfirmSettle() = settlementDelegate.onConfirmSettle()

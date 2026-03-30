@@ -32,7 +32,7 @@ object NetworkModule {
                 scheme = "com.example.divvy"
                 host = "auth"
                 defaultExternalAuthAction = ExternalAuthAction.CUSTOM_TABS
-                alwaysAutoRefresh = false
+                alwaysAutoRefresh = true
             }
             install(Postgrest)
             install(Realtime)

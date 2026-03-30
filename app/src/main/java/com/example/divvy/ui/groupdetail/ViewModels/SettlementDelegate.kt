@@ -2,6 +2,7 @@ package com.example.divvy.ui.groupdetail.ViewModels
 
 import com.example.divvy.backend.BalanceRepository
 import com.example.divvy.backend.ExpensesRepository
+import com.example.divvy.backend.FriendsRepository
 import com.example.divvy.backend.GroupRepository
 import com.example.divvy.models.ExpenseSplit
 import com.example.divvy.models.MemberBalance
@@ -32,6 +33,7 @@ class SettlementDelegate(
     private val expensesRepository: ExpensesRepository,
     private val balanceRepository: BalanceRepository,
     private val groupRepository: GroupRepository,
+    private val friendsRepository: FriendsRepository,
     private val getMemberBalances: () -> List<MemberBalance>
 ) {
     private val _state = MutableStateFlow(SettlementState())
@@ -52,7 +54,7 @@ class SettlementDelegate(
                 SettlementState()
             } else {
                 val payment = simplifiedPayments.firstOrNull { p ->
-                    p.currency == currency && p.fromUserId == userId
+                    p.currency == currency && (p.fromUserId == userId || p.toUserId == userId)
                 }
                 s.copy(
                     expandedMemberId   = userId,
@@ -103,8 +105,10 @@ class SettlementDelegate(
                 paidByUserId = fromUserId,
                 splits       = listOf(ExpenseSplit(toUserId, amountCents))
             )
+            balanceRepository.clearCache(groupId)
             balanceRepository.refreshBalances(groupId)
             groupRepository.refreshGroups()
+            runCatching { friendsRepository.getFriendsBalances() }
             _state.update { SettlementState() }
         }
     }

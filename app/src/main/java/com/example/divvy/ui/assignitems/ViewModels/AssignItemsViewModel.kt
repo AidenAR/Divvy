@@ -8,6 +8,7 @@ import com.example.divvy.backend.ActivityRepository
 import com.example.divvy.backend.AuthRepository
 import com.example.divvy.backend.BalanceRepository
 import com.example.divvy.backend.ExpensesRepository
+import com.example.divvy.backend.FriendsRepository
 import com.example.divvy.backend.GroupRepository
 import com.example.divvy.backend.MemberRepository
 import com.example.divvy.backend.ScannedReceiptStore
@@ -258,7 +259,8 @@ class AssignItemsViewModel @AssistedInject constructor(
     private val balanceRepository: BalanceRepository,
     private val groupRepository: GroupRepository,
     private val activityRepository: ActivityRepository,
-    private val scannedReceiptStore: ScannedReceiptStore
+    private val scannedReceiptStore: ScannedReceiptStore,
+    private val friendsRepository: FriendsRepository
 ) : ViewModel() {
 
     @AssistedFactory
@@ -503,6 +505,7 @@ class AssignItemsViewModel @AssistedInject constructor(
                 expensesRepository.refreshGroupExpenses(groupId)
                 groupRepository.refreshGroups()
                 activityRepository.refreshActivityFeed()
+                runCatching { friendsRepository.getFriendsBalances() }
                 _uiState.update { it.copy(isSaving = false) }
                 _done.send(Unit)
             } catch (e: Exception) {
