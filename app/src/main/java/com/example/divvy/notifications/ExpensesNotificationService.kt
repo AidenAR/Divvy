@@ -76,23 +76,25 @@ class ExpenseNotificationService @Inject constructor(
             return
         }
 
-        val channel = supabaseClient.channel("expense-push-notifications")
+        try {
+            val channel = supabaseClient.channel("expense-push-notifications")
 
-        channel
-            .postgresChangeFlow<PostgresAction.Insert>(schema = "public") {
-                table = "expenses"
-            }
-            .onEach { action ->
-                handleInsert(action, myUserId)
-            }
-            .catch { e ->
-                // Realtime errors (network blip, token expiry) are breadcrumbs, not full events,
-                // because they resolve themselves on reconnect.
-                Sentry.addBreadcrumb("ExpenseNotificationService: realtime error — $e")
-            }
-            .launchIn(scope)
+            channel
+                .postgresChangeFlow<PostgresAction.Insert>(schema = "public") {
+                    table = "expenses"
+                }
+                .onEach { action ->
+                    handleInsert(action, myUserId)
+                }
+                .catch { e ->
+                    Sentry.addBreadcrumb("ExpenseNotificationService: realtime flow error — $e")
+                }
+                .launchIn(scope)
 
-        channel.subscribe()
+            channel.subscribe()
+        } catch (e: Exception) {
+            Sentry.captureException(e)
+        }
     }
 
     // ------------------------------------------------------------------
